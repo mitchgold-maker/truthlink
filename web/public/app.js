@@ -396,6 +396,7 @@ let page = "overview",
   drafts = [];
 const names = {
   overview: "Overview",
+  autopilot: "Autopilot",
   tasks: "Initiatives & tasks",
   team: "Members & capacity",
   decisions: "Decisions",
@@ -406,6 +407,7 @@ const names = {
 };
 const icons = {
   overview: "◫",
+  autopilot: "⚡",
   tasks: "▤",
   team: "♧",
   decisions: "≋",
@@ -505,6 +507,7 @@ function render() {
   document.getElementById("app").innerHTML =
     {
       overview: overview,
+      autopilot: autopilotPage,
       tasks: tasksPage,
       team: teamPage,
       decisions: decisionsPage,
@@ -1844,3 +1847,134 @@ async function importFromSlack(btn) {
     btn.textContent = label;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Autopilot: AI agents that watch Slack for meeting minutes, draft tasks, check due work against
+// its evidence, and message owners who are behind. Runs every 5 minutes while TruthLink is open
+// (the workspace lives in this browser until a server database is connected).
+const AGENT_INTERVAL_MS = 5 * 60 * 1000;
+function agentState() {
+  state.agent ||= { enabled: true, cursor: null, lastNudged: {}, log: [], drafts: [], nudges: [], dayOffset: 0, lastRun: null, running: false };
+  return state.agent;
+}
+function agentToday() {
+  const d = new Date();
+  d.setDate(d.getDate() + (agentState().dayOffset || 0));
+  return d.toISOString().slice(0, 10);
+}
+let agentSlack = null;
+fetch("/api/slack").then((r) => r.json()).then((j) => { agentSlack = j.configured; if (page === "autopilot") render(); }).catch(() => {});
+const agentSampleMinutes = () =>
+  "Design review minutes\n- Jordan will update the front upright drawing after review comments by " + agentToday() + ".\n- Alex will run the shock dyno baseline by Friday.\n- Casey will check the harness pinout with the faculty advisor.\n- Still need someone to book the skidpad for test day.";
+
+async function runAgent(opts = {}) {
+  const a = agentState();
+  if (a.running) return;
+  a.running = true;
+  render();
+  try {
+    const res = await fetch("/api/agent/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        today: agentToday(),
+        cursor: a.cursor,
+        lastNudged: a.lastNudged,
+        simulatedMinutes: opts.simulatedMinutes,
+        people: state.people.map((p) => ({ id: p.id, name: p.name, skills: p.skills || [], slack_id: p.slack_id })),
+        tasks: state.tasks.map((t) => ({ id: t.id, title: t.title, owner: t.owner || "", due: t.due || "", status: t.status, type: t.type, criteria: t.criteria || "", updated_at: t.updated_at, evidenceDocs: (t.evidenceDocs || []).slice(0, 5) })),
+      }),
+    });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || res.status);
+    a.cursor = j.cursor;
+    for (const d of j.drafts) a.drafts.push({ ...d, id: "ad" + Date.now() + Math.random().toString(36).slice(2, 6) });
+    for (const n of j.nudges) {
+      a.lastNudged[n.task_id] = agentToday() + "T09:00:00";
+      a.nudges.unshift({ ...n, at: agentToday() });
+    }
+    a.log = [...j.log.map((l) => ({ ...l, day: agentToday() })), ...a.log].slice(0, 40);
+    a.lastRun = new Date().toISOString();
+    if (j.nudges.length || j.drafts.length) toast(`Autopilot: ${j.drafts.length} draft(s), ${j.nudges.length} owner nudge(s)${j.slack ? " sent on Slack" : " (Slack not connected)"}.`);
+  } catch (e) {
+    a.log.unshift({ at: new Date().toISOString(), day: agentToday(), kind: "error", text: "Agent run failed: " + e.message, live: false });
+  } finally {
+    a.running = false;
+    save();
+    render();
+  }
+}
+async function approveAgentDrafts() {
+  const a = agentState();
+  if (!a.drafts.length) return;
+  const created = a.drafts.map((d, i) => ({
+    id: "ap" + Date.now() + i,
+    title: d.title,
+    owner: d.suggested_owner_id || "",
+    project: "Chassis & Suspension",
+    due: d.due_date || "",
+    hours: d.estimated_hours || 2,
+    skills: d.required_skills?.length ? d.required_skills : inferSkills(d.title),
+    status: "todo",
+    type: d.verification_type === "binary" ? "exists" : "manager",
+    criteria: [d.deliverable, ...(d.acceptance_criteria || [])].filter(Boolean).join(" "),
+    source_quote: d.source_quote,
+    evidence: [],
+    checked: false,
+    created_at: new Date().toISOString(),
+    assigned_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }));
+  state.tasks.push(...created);
+  a.drafts = [];
+  log(`Team lead approved ${created.length} Autopilot task(s)`);
+  let sent = 0;
+  for (const t of created.filter((t) => t.owner)) {
+    const p = person(t.owner);
+    const text = `:pushpin: *${p?.name || "Owner"}*, you're assigned “${t.title}”${t.due ? " (due " + t.due + ")" : ""}. Done means: ${t.criteria || "see TruthLink"}`;
+    try {
+      const r = await fetch("/api/slack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send", text }) });
+      if (r.ok) sent++;
+    } catch {}
+  }
+  a.log.unshift({ at: new Date().toISOString(), day: agentToday(), kind: "assign", text: `Assigned ${created.length} task(s)${sent ? ", notified " + sent + " owner(s) on Slack" : " (Slack not connected: owners not messaged)"}`, live: sent > 0 });
+  save();
+  render();
+}
+function agentSkip(days) {
+  const a = agentState();
+  a.dayOffset = (a.dayOffset || 0) + days;
+  a.log.unshift({ at: new Date().toISOString(), day: agentToday(), kind: "time", text: `⏩ Simulated time skip: now ${agentToday()}`, live: false });
+  save();
+  runAgent();
+}
+function agentToggle(on) { agentState().enabled = on; save(); render(); }
+function agentReset() { const a = agentState(); Object.assign(a, { cursor: null, lastNudged: {}, log: [], drafts: [], nudges: [], dayOffset: 0, lastRun: null }); save(); render(); }
+
+function autopilotPage() {
+  const a = agentState();
+  const kindTag = (k) => ({ slack: "Slack", draft: "Drafted", check: "Checked", nudge: "Nudge", assign: "Assigned", time: "Time skip", error: "Error" })[k] || k;
+  return heading("AI agents on duty", "Autopilot", "Watches Slack for meeting minutes, drafts tasks, checks due work against its evidence, and messages owners who fall behind.",
+      `<button class="small" onclick="runAgent()" ${a.running ? "disabled" : ""}>${a.running ? "Running…" : "Run now"}</button>`) +
+    `<div class="stats">
+      <div class="stat"><div class="stat-label">Autopilot</div><div class="stat-num" style="font-size:22px">${a.enabled ? "On" : "Off"}</div><div class="stat-foot"><label><input type="checkbox" ${a.enabled ? "checked" : ""} onchange="agentToggle(this.checked)"> Run every 5 minutes while open</label></div></div>
+      <div class="stat"><div class="stat-label">Slack</div><div class="stat-num" style="font-size:22px">${agentSlack ? "Connected" : agentSlack === false ? "Not connected" : "…"}</div><div class="stat-foot">${agentSlack ? "Reads the channel and messages owners" : "Add SLACK_BOT_TOKEN + SLACK_CHANNEL_ID in Amplify"}</div></div>
+      <div class="stat"><div class="stat-label">Last run</div><div class="stat-num" style="font-size:22px">${a.lastRun ? new Date(a.lastRun).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Never"}</div><div class="stat-foot">Workspace date ${agentToday()}${a.dayOffset ? ' <span class="tag amber">simulated</span>' : ""}</div></div>
+      <div class="stat"><div class="stat-label">Owner nudges</div><div class="stat-num">${a.nudges.length}</div><div class="stat-foot">Max one per task per day</div></div>
+    </div>
+    <div class="grid">
+      <section class="panel"><div class="panel-head"><h2>Waiting for your approval</h2>${a.drafts.length ? `<button class="primary small" onclick="approveAgentDrafts()">Approve & assign ${a.drafts.length}</button>` : ""}</div><div class="panel-body">
+        ${a.drafts.length ? a.drafts.map((d) => `<div class="draft"><strong>${esc(d.title)}</strong><p class="hint">${esc(person(d.suggested_owner_id)?.name || "Unassigned")} · due ${esc(d.due_date || "not set")} · “${esc(d.source_quote)}”</p></div>`).join("") : '<p class="hint">No drafts. When minutes appear in Slack, the agent drafts tasks here. Nobody is assigned until you approve.</p>'}
+        ${agentSlack ? "" : `<details style="margin-top:12px"><summary class="hint" style="cursor:pointer">Slack not connected: simulate minutes being posted</summary><textarea id="agentMinutes" style="margin-top:8px">${esc(agentSampleMinutes())}</textarea><button class="small" style="margin-top:8px" onclick="runAgent({ simulatedMinutes: document.getElementById('agentMinutes').value })">Post to simulated Slack & run agent</button></details>`}
+      </div></section>
+      <section class="panel"><div class="panel-head"><h2>Nudges sent</h2></div><div class="panel-body">
+        ${a.nudges.length ? a.nudges.slice(0, 8).map((n) => `<div class="draft"><p style="margin:0">${esc(n.text.replace(/<@[^>]+>/g, person(n.owner)?.name || "Owner"))}</p><p class="hint">${n.at} · ${n.posted ? '<span class="tag">Sent on Slack</span>' : '<span class="tag amber">Not sent: Slack not connected</span>'}</p></div>`).join("") : '<p class="hint">Nobody is behind yet. Tasks due by tomorrow get checked against their evidence; owners are messaged only if the check doesn\'t pass.</p>'}
+        <div class="actions" style="margin-top:12px"><button class="small" onclick="agentSkip(1)">⏩ Skip ahead 1 day</button><button class="small" onclick="agentSkip(5)">⏩ Skip ahead 5 days</button><button class="small quiet" onclick="agentReset()">Reset agent</button></div>
+        <p class="hint">Time skips are simulated so you can see the agent catch overdue work in a demo.</p>
+      </div></section>
+    </div>
+    <section class="panel section-gap"><div class="panel-head"><h2>Agent activity</h2></div><div class="panel-body">
+      ${a.log.length ? a.log.map((l) => `<div class="activity"><span class="dot"></span><div><p>${esc(l.text)}</p><small>${kindTag(l.kind)} · ${l.day || ""} · ${new Date(l.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}${l.live ? "" : " · not sent externally"}</small></div></div>`).join("") : '<p class="hint">No runs yet. Click Run now.</p>'}
+    </div></section>`;
+}
+setInterval(() => { if (agentState().enabled && document.visibilityState === "visible") runAgent(); }, AGENT_INTERVAL_MS);
