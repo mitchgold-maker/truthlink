@@ -457,6 +457,7 @@ function toast(s) {
 function go(p) {
   page = p;
   if (p === "insights") loadPerformance();
+  if (p === "integrations") { loadFusionDesigns(); loadIntegrationHealth(); }
   query = "";
   statusFilter = "all";
   render();
@@ -483,7 +484,7 @@ function render() {
       followups: followupsPage,
       integrations: integrationsPage,
     }[page]() +
-    `<p class="page-note">Demo workspace · Fictional records · Changes saved in this browser · Integrations and live AI are not connected.</p>`;
+    `<p class="page-note">Demo workspace · Fictional team records · ${esc(syncStatus)} · Fusion snapshots and AI results show their source.</p>`;
 }
 function overview() {
   let pending = state.tasks.filter((t) => t.status === "pending_approval"),
@@ -1222,39 +1223,32 @@ async function copyFollowup(id) {
     toast("Clipboard unavailable. Select the draft text to copy.");
   }
 }
+let fusionDesigns = null, fusionLoading = false, integrationHealth = null;
+async function loadFusionDesigns() {
+  if (fusionLoading) return;
+  fusionLoading = true;
+  try {
+    const data = await apiJson("/api/fusion/snapshot");
+    if (!Array.isArray(data.designs)) throw new Error("Invalid design list");
+    fusionDesigns = data.designs;
+  } catch (e) { fusionDesigns = null; toast("Fusion designs unavailable: " + e.message + ". Manual snapshot upload remains available."); }
+  finally { fusionLoading = false; if (page === "integrations") render(); }
+}
+async function loadIntegrationHealth() {
+  try { integrationHealth = await apiJson("/api/health"); }
+  catch (e) { integrationHealth = null; toast("Integration status unavailable: " + e.message + ". Connections are shown as unconfirmed."); }
+  if (page === "integrations") render();
+}
 function integrationsPage() {
-  return (
-    heading(
-      "Built to connect",
-      "Integrations",
-      "The workflow is ready. Live data connections come next.",
-    ) +
-    `<div class="integration-grid">${[
-      [
-        "Bloomerang",
-        "Future connection for donor and sponsor records. No Bloomerang account or API is connected in this demo.",
-      ],
-      [
-        "Slack",
-        "Outgoing, coordinator-approved reminders and handoff notifications. Two-way responses planned later.",
-      ],
-      [
-        "Google Drive",
-        "Link deliverables and inspect available file metadata. Open-time and session data only when actually available.",
-      ],
-      [
-        "AI & database",
-        "Live LLM task extraction, evidence assistance, shared records, and authenticated coordinator permissions. Engineering-club Fusion integration can follow later.",
-      ],
-    ]
-      .map(
-        ([name, desc]) =>
-          `<section class="panel integration"><div class="row"><h2>${name}</h2><span class="tag gray">Planned</span></div><p>${desc}</p><button class="small" onclick="toast('Integration planned for the next build. No account is connected.')">View connection status →</button></section>`,
-      )
-      .join(
-        "",
-      )}</div><section class="panel section-gap"><div class="panel-head"><h2>Demo workspace controls</h2></div><div class="panel-body"><p>Export your current records to share with your partner. Reset restores the fictional starting scenario.</p><div class="actions" style="margin-top:15px"><button onclick="exportData()">Export JSON</button><button onclick="resetDialog()">Reset demo</button></div><p class="hint">This version uses browser storage, with no shared database or enforced coordinator identity. Do not use it for real volunteer records yet.</p></div></section>`
-  );
+  return heading("Connection evidence", "Integrations", "Live add-in snapshots and explicit connection status.") +
+    `<section class="panel"><div class="panel-head"><h2>Autodesk Fusion</h2><span class="tag ${fusionDesigns ? "" : "gray"}">${fusionDesigns ? "Connected via add-in" : fusionLoading ? "Checking received designs…" : "Status unconfirmed"}</span><button onclick="loadFusionDesigns()">Refresh designs</button></div><div class="table-wrap"><table><thead><tr><th>Design</th><th>Mass</th><th>Version</th><th>Last received</th></tr></thead><tbody>${(fusionDesigns || []).map(d => `<tr><td>${esc(d.document)}</td><td>${Number.isFinite(d.mass_g) ? esc(d.mass_g)+" g" : "Not measured"}</td><td>${d.current_version == null ? "Unsaved" : "v"+esc(d.current_version)}</td><td>${esc(d.received_at || "Not recorded")}</td></tr>`).join("")}</tbody></table></div><div class="panel-body"><p>${fusionDesigns?.length ? "Snapshots received from the on-device TruthLink add-in." : fusionDesigns ? "No designs received yet. Save a design with the add-in enabled." : "No live design list available. You can upload a snapshot manually."}</p></div></section>` +
+    `<div class="integration-grid section-gap">${[
+      ["Slack","Not connected","Follow-up drafts are copy-to-clipboard only. No messages are sent."],
+      ["Google Drive","Not connected","Evidence is supplied through uploads or Fusion snapshots."],
+      ["Bloomerang","Not connected","No donor or sponsor account is connected."],
+      ["MongoDB Atlas",syncStatus.startsWith("Synced") ? "Connected" : "Not connected","Workspace state uses Atlas when available, with device storage as fallback. Demo role controls are not authentication."],
+      ["AI",integrationHealth?.ai ? "Configured · " + integrationHealth.provider : "Not connected","AI calls use the server spend guard; unavailable calls fall back to clearly labelled local behavior."]
+    ].map(([name,label,description]) => `<section class="panel integration"><div class="row"><h2>${esc(name)}</h2><span class="tag gray">${esc(label)}</span></div><p>${esc(description)}</p></section>`).join("")}</div><section class="panel section-gap"><div class="panel-head"><h2>Demo workspace controls</h2></div><div class="panel-body"><p>Export current records or reset to the fictional racing-team scenario.</p><div class="actions"><button onclick="exportData()">Export JSON</button><button onclick="resetDialog()">Reset demo</button></div></div></section>`;
 }
 function exportData() {
   let blob = new Blob(
