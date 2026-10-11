@@ -637,7 +637,7 @@ function insightsPage() {
     '<section class="panel section-gap"><div class="panel-head"><h2>Evidence quality</h2></div><div class="panel-body"><div class="stats">' +
     Object.entries(verdicts).map(([verdict,count]) => `<div class="stat"><span>${esc(verdict)}</span><strong>${count}</strong></div>`).join("") +
     `</div><p>${reviewed} tasks with a last AI review · ${state.tasks.length - reviewed} without a recorded AI verdict. AI pass is not coordinator approval.</p><h3>Most common missing items</h3>` +
-    (missing.length ? missing.slice(0,5).map(item => `<p>${esc(item.label)} <span class="tag gray">${item.count} ${item.count === 1 ? "task" : "tasks"}</span></p>`).join("") : '<p>No missing items recorded in AI reviews.</p>') + '</div></section>' + ownershipMap() + performanceSection();
+    (missing.length ? missing.slice(0,5).map(item => `<p>${esc(item.label)} <span class="tag gray">${item.count} ${item.count === 1 ? "task" : "tasks"}</span></p>`).join("") : '<p>No missing items recorded in AI reviews.</p>') + '</div></section>' + ownershipMap() + performanceSection() + deadlineForecast();
 }
 function teamPage() {
   return (
@@ -1686,6 +1686,30 @@ function labCallout() {
   if (!labResults) return '<div class="callout"><div><h3>Verifier Lab</h3><p>Run results unavailable. Open the lab to inspect recorded experiments.</p></div><a href="/lab" target="_blank" rel="noopener noreferrer">Open lab ↗</a></div>';
   const baseline = (labResults.test.baseline.accuracy*100).toFixed(1), improved = (labResults.test.improved.accuracy*100).toFixed(1);
   return `<div class="callout"><div><h3>Our verifier improves itself</h3><p>${baseline}% → ${improved}% on a fresh test (${labResults.agents?.length || 0} agents · ${esc(labResults.provider)}).</p><p class="hint">Recorded experiment · ${esc(labResults.test_cases)} fresh cases · ${esc(labResults.run_at)}. These are verifier scores, not task completion rates.</p></div><a href="/lab" target="_blank" rel="noopener noreferrer">Verifier Lab ↗</a></div>`;
+}
+let competition = {date:"2026-11-14",title:"Design report due"};
+try { const saved = JSON.parse(localStorage.getItem(KEY+"-competition")); if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved.date)) competition = saved; } catch { /* Use the labelled default. */ }
+function setCompetition() {
+  const date = document.getElementById("competitionDate").value, title = document.getElementById("competitionTitle").value.trim();
+  if (!date || !title) return toast("Add a competition date and label.");
+  competition = {date,title};
+  try { localStorage.setItem(KEY+"-competition",JSON.stringify(competition)); } catch { toast("Date storage unavailable; using this session's competition date."); }
+  render();
+}
+function deadlineForecast() {
+  const now = new Date(), today = Date.UTC(now.getFullYear(),now.getMonth(),now.getDate()), deadline = new Date(competition.date+"T00:00:00Z").getTime();
+  const subsystems = [...new Set(state.tasks.map(t => t.project || "Unassigned"))].sort();
+  const hoursOf = tasks => tasks.reduce((sum,t) => sum + (Number.isFinite(Number(t.hours)) ? Math.max(0,Number(t.hours)) : 0),0);
+  return `<section class="panel section-gap"><div class="panel-head"><h2>Deadline forecast</h2></div><div class="panel-body"><label for="competitionDate">Competition date</label><input id="competitionDate" type="date" value="${esc(competition.date)}"><label for="competitionTitle">Milestone</label><input id="competitionTitle" value="${esc(competition.title)}"><button onclick="setCompetition()">Update forecast</button><p>${esc(competition.date)} · ${esc(competition.title)}</p></div><div class="table-wrap"><table><thead><tr><th>Subsystem</th><th>Remaining hours</th><th>Available hours / week</th><th>Projected finish</th><th>Deadline</th></tr></thead><tbody>${subsystems.map(subsystem => {
+    const open = state.tasks.filter(t => active(t) && (t.project || "Unassigned") === subsystem), hours = hoursOf(open);
+    const capacity = state.people.filter(p => !p.pto).reduce((sum,p) => {
+      const assigned = hoursOf(state.tasks.filter(t => active(t) && t.owner === p.id)), local = hoursOf(open.filter(t => t.owner === p.id));
+      return sum + (assigned && Number.isFinite(Number(p.capacity)) ? Math.max(0,Number(p.capacity))*local/assigned : 0);
+    },0);
+    const finish = hours === 0 ? today : capacity > 0 ? today + Math.ceil(hours/capacity*7)*86400000 : null;
+    const late = finish === null ? null : Math.max(0,Math.round((finish-deadline)/86400000));
+    return `<tr><td>${esc(subsystem)}</td><td>${hours.toFixed(1)}h</td><td>${capacity.toFixed(1)}h</td><td>${finish === null ? "No available capacity" : new Date(finish).toISOString().slice(0,10)}</td><td><span class="tag ${finish === null || late > 0 ? "amber" : ""}">${finish === null ? "Unscheduled" : late ? late+" days late" : "On track"}</span></td></tr>`;
+  }).join("")}</tbody></table></div><div class="panel-body"><p class="hint">Projection from current assignments and declared capacity. Shared member capacity is allocated across subsystems in proportion to assigned estimates. Competition date is saved on this device.</p>${!subsystems.length ? "<p>No tasks to forecast.</p>" : ""}</div></section>`;
 }
 render();
 
