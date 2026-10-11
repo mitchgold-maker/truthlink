@@ -454,6 +454,11 @@ function toast(s) {
   clearTimeout(window.toastTimer);
   window.toastTimer = setTimeout(() => (t.hidden = true), 4500);
 }
+function toggleNav() {
+  const nav = document.getElementById("nav"), button = document.getElementById("navToggle");
+  const open = nav.classList.toggle("mobile-open");
+  button.setAttribute("aria-expanded", String(open));
+}
 function go(p) {
   page = p;
   if (p === "insights") loadPerformance();

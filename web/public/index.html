@@ -720,6 +720,24 @@
           grid-template-columns: 1fr;
         }
       }
+    .mobile-nav-toggle { display:none; }
+    .lab-nav { display:block;padding:12px;color:inherit; }
+    .shell > *, main, .panel, .grid > *, .titlebar > *, .callout > * { min-width:0; }
+    .table-wrap { max-width:100%;overflow-x:auto; }
+    @media (max-width:720px) {
+      .mobile-nav-toggle { display:block;margin-top:12px; }
+      nav { display:none; }
+      nav.mobile-open { display:flex;flex-direction:column; }
+      nav button { width:100%; }
+      header { height:auto;min-height:55px;flex-wrap:wrap;gap:8px;padding:12px 16px; }
+      .titlebar,.panel-head,.callout,.modal-footer { flex-wrap:wrap;gap:12px; }
+      h1,h2,h3,p,.evidence { overflow-wrap:anywhere; }
+      dialog { width:calc(100vw - 24px);max-width:calc(100vw - 24px);max-height:90dvh;box-sizing:border-box; }
+      .modal-content { padding:18px; }
+      input,select,textarea { max-width:100%;box-sizing:border-box; }
+      .table-wrap table { min-width:520px; }
+      .actions { flex-wrap:wrap; }
+    }
     @media print {
   body > :not(dialog) { display: none !important; }
   dialog { position: static; width: 100%; max-width: none; max-height: none; height: auto; border: 0; box-shadow: none; overflow: visible; margin: 0; padding: 0; }
@@ -746,7 +764,7 @@
           >
         </div>
         <div class="nav-label">Workspace</div>
-        <nav id="nav"></nav>
+        <button id="navToggle" class="mobile-nav-toggle" aria-controls="nav" aria-expanded="false" onclick="toggleNav()">Menu</button><nav id="nav"></nav>
         <div class="side-bottom">
           <div style="background: #f5f7ee; border-radius: 8px; padding: 13px">
             <strong style="color: var(--green)">Work, with proof.</strong
