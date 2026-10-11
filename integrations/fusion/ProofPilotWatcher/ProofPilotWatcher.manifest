@@ -1,0 +1,11 @@
+{
+  "autodeskProduct": "Fusion",
+  "type": "addin",
+  "author": "ProofPilot",
+  "description": {
+    "": "Checks ProofPilot targets on every save and sends a design snapshot to ProofPilot."
+  },
+  "supportedOS": "windows|mac",
+  "editEnabled": true,
+  "runOnStartup": false
+}

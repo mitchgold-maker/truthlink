@@ -1,0 +1,10 @@
+{
+  "autodeskProduct": "Fusion",
+  "type": "script",
+  "author": "ProofPilot",
+  "description": {
+    "": "Builds the fictional parametric front upright used in the ProofPilot demo."
+  },
+  "supportedOS": "windows|mac",
+  "editEnabled": true
+}
