@@ -471,7 +471,7 @@ function render() {
       ([id, name]) =>
         `<button class="${page === id ? "active" : ""}" onclick="go('${id}')"><span>${icons[id]}</span>${name}${id === "tasks" ? `<span class="count">${state.tasks.filter(active).length}</span>` : ""}</button>`,
     )
-    .join("");
+    .join("") + '<a class="lab-nav" href="/lab" target="_blank" rel="noopener noreferrer">Verifier Lab ↗</a>';
   document.getElementById("app").innerHTML =
     {
       overview: overview,
@@ -501,7 +501,7 @@ function overview() {
       "Less chasing. Clearer handoffs. A coordinator who stays in charge.",
       `<button onclick="go('meetings')">▧ Import meeting notes</button><button class="primary" onclick="newTask()">+ New task</button>`,
     ) +
-    demoGuide() +
+    demoGuide() + labCallout() +
     `<div class="stats">${[
       [
         "Active tasks",
@@ -1679,8 +1679,24 @@ async function aiFetch(key, label, url, options) {
     paintAIProgress();
   }
 }
+let labResults = null;
+async function loadLabResults() {
+  try {
+    const results = await apiJson("/lab/results.json");
+    if (![results.test?.baseline?.accuracy,results.test?.improved?.accuracy].every(n => Number.isFinite(n) && n >= 0 && n <= 1)) throw new Error("Missing fresh-test accuracy");
+    labResults = results;
+  } catch (e) { labResults = null; toast("Verifier Lab results unavailable: " + e.message + ". Open the lab to inspect the run."); }
+  if (page === "overview") render();
+}
+function labCallout() {
+  if (!labResults) return '<div class="callout"><div><h3>Verifier Lab</h3><p>Run results unavailable. Open the lab to inspect recorded experiments.</p></div><a href="/lab" target="_blank" rel="noopener noreferrer">Open lab ↗</a></div>';
+  const baseline = (labResults.test.baseline.accuracy*100).toFixed(1), improved = (labResults.test.improved.accuracy*100).toFixed(1);
+  return `<div class="callout"><div><h3>Our verifier improves itself</h3><p>${baseline}% → ${improved}% on a fresh test (${labResults.agents?.length || 0} agents · ${esc(labResults.provider)}).</p><p class="hint">Recorded experiment · ${esc(labResults.test_cases)} fresh cases · ${esc(labResults.run_at)}. These are verifier scores, not task completion rates.</p></div><a href="/lab" target="_blank" rel="noopener noreferrer">Verifier Lab ↗</a></div>`;
+}
 render();
 
 loadSharedState();
 
 loadPerformance();
+
+loadLabResults();
