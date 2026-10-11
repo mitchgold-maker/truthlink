@@ -4,7 +4,7 @@
 Managers lose hours chasing status, checking whether "done" really means done, and figuring out who can pick up work when someone is overloaded or out. Status lives in people's heads, meeting notes and scattered files.
 
 ## Product
-ProofPilot turns meetings into accountable tasks, verifies deliverables with evidence, builds a record of what each person has actually delivered, and uses that record to keep projects on schedule.
+TruthLink turns meetings into accountable tasks, verifies deliverables with evidence, builds a record of what each person has actually delivered, and uses that record to keep projects on schedule.
 
 ## Customers and pilots
 - **Target customers:** large engineering organizations, such as aerospace and defense companies like Lockheed Martin and Boeing (no affiliation; this is the market we are building for). Many concurrent programs, deliverables that must be verifiable, specialised skills, and high cost when a key engineer is out.

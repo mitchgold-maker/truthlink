@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-// Receives snapshots from the ProofPilot Watcher Fusion add-in (on every save) and serves the latest per design.
+// Receives snapshots from the TruthLink Watcher Fusion add-in (on every save) and serves the latest per design.
 // In-memory for now; moves to the database layer when it is connected.
 
 const Snapshot = z
@@ -19,8 +19,8 @@ const g = globalThis as unknown as { __fusionSnapshots?: Map<string, Stored[]> }
 const store = (g.__fusionSnapshots ??= new Map());
 
 function authorized(req: Request) {
-  const token = process.env.PROOFPILOT_INGEST_TOKEN;
-  return !token || req.headers.get("x-proofpilot-token") === token;
+  const token = process.env.TRUTHLINK_INGEST_TOKEN;
+  return !token || req.headers.get("x-truthlink-token") === token;
 }
 
 export async function POST(req: Request) {

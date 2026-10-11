@@ -1,9 +1,9 @@
 {
   "autodeskProduct": "Fusion",
   "type": "addin",
-  "author": "ProofPilot",
+  "author": "TruthLink",
   "description": {
-    "": "Checks ProofPilot targets on every save and sends a design snapshot to ProofPilot."
+    "": "Checks TruthLink targets on every save and sends a design snapshot to TruthLink."
   },
   "supportedOS": "windows|mac",
   "editEnabled": true,

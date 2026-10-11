@@ -8,7 +8,7 @@ Great work on `62264fb` and `fa750df`. Both are pushed. Read `docs/STRATEGY.md` 
 1. Track `t.updated_at` (ISO) whenever a task's status, owner or evidence changes, and seed it on existing tasks (`"2026-10-10T09:00:00"`).
 2. In `checkEvidence`, send `since: t.updated_at` to `/api/verify`. Note the response now has `checks[].method` = `measured` | `ai` | `human`, plus `ruleChecks` and `aiChecks`.
 3. In `review()`, give each check a badge: **Measured** (green), **AI** (blue), **Needs team lead** (grey). Show a line such as "3 of 4 criteria measured from Fusion · 1 AI check". A `human` check must not block "pending approval" (that is the approver's job). Only `no` blocks it.
-4. Add a hint under the evidence upload: "Tip: upload a Fusion snapshot (`*.proofpilot.json`) to verify mass, versions and components."
+4. Add a hint under the evidence upload: "Tip: upload a Fusion snapshot (`*.truthlink.json`) to verify mass, versions and components."
 
 **F. Decision log (club pain #2)**
 - `state.decisions = [{id, at, by, kind: "approval"|"rejection"|"reassignment"|"spec_change", task_id, summary, why, superseded_by: null|id}]`.

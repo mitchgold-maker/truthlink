@@ -1,9 +1,9 @@
 {
   "autodeskProduct": "Fusion",
   "type": "script",
-  "author": "ProofPilot",
+  "author": "TruthLink",
   "description": {
-    "": "Export measured design facts (mass, parameters, versions) as ProofPilot task evidence."
+    "": "Export measured design facts (mass, parameters, versions) as TruthLink task evidence."
   },
   "supportedOS": "windows|mac",
   "editEnabled": true

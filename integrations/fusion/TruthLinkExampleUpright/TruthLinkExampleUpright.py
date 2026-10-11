@@ -1,9 +1,9 @@
-"""Builds the ProofPilot demo part: a parametric, racing-style front upright (fictional design).
+"""Builds the TruthLink demo part: a parametric, racing-style front upright (fictional design).
 
 Creates a new design with named bodies (Upright Body, Upper/Lower A-arm Pickup, Steering Arm,
 Brake Caliper Mount), aluminum material, and user parameters. `body_t` drives mass:
 14 mm gives about 550 g (fails a 450 g target); 11 mm gives about 440 g (passes).
-`pp_max_mass_g` stores the target so the ProofPilot add-in can check it on every save.
+`pp_max_mass_g` stores the target so the TruthLink add-in can check it on every save.
 """
 
 import traceback
@@ -70,7 +70,7 @@ def run(context):
         params.add("body_t", V.createByString("14 mm"), "mm", "Upright body thickness (drives mass)")
         params.add("pickup_t", V.createByString("body_t + 6 mm"), "mm", "A-arm pickup clevis thickness")
         params.add("bore_d", V.createByString("62 mm"), "mm", "Hub bearing bore (6012-size bearing)")
-        params.add("pp_max_mass_g", V.createByReal(450), "", "ProofPilot target: max upright mass in grams")
+        params.add("pp_max_mass_g", V.createByReal(450), "", "TruthLink target: max upright mass in grams")
         # The watcher reads required feature/body names from this parameter's comment.
         params.add("pp_required", V.createByReal(1), "", "Brake Caliper Mount, Steering Arm, Bearing Bore, Tie Rod Hole")
 
@@ -138,9 +138,9 @@ def run(context):
         mass = comp.getPhysicalProperties().mass * 1000
         ui.messageBox(
             f"Example upright created.\nMass: {mass:.0f} g (target {450} g, material: {mat.name if mat else 'default — assign aluminum'})\n\n"
-            "Save it to your cloud project, then run ProofPilotSnapshot or start the ProofPilot Watcher add-in.\n"
+            "Save it to your cloud project, then run TruthLinkSnapshot or start the TruthLink Watcher add-in.\n"
             "Demo: change body_t from 14 mm to 11 mm, save, and the mass check flips to pass.",
-            "ProofPilot",
+            "TruthLink",
         )
     except Exception:
         if ui:

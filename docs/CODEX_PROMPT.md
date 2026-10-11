@@ -4,7 +4,7 @@ Paste everything below the line into Codex (pointed at `mitchgold-maker/proofpil
 
 ---
 
-You are working in the ProofPilot hackathon repo. Read `AGENTS.md`, `docs/AI_CONTRACTS.md` (§2 verify_evidence, §4 draft_followup) and `docs/partner/DEVELOPMENT_NOTES.md` first. All code must be new; do not copy from anywhere outside this repo.
+You are working in the TruthLink hackathon repo. Read `AGENTS.md`, `docs/AI_CONTRACTS.md` (§2 verify_evidence, §4 draft_followup) and `docs/partner/DEVELOPMENT_NOTES.md` first. All code must be new; do not copy from anywhere outside this repo.
 
 **Architecture (already in place, do not change):** `web/` is a Next.js 15 app. The UI is plain JS in `web/public/index.html` + `web/public/app.js` (served at `/`). Server AI calls go through `web/lib/ai/llm.ts` → `callJson(zodSchema, system, user)`, an OpenAI-compatible client pointed at Luminal Cloud via env vars. Pattern to copy: `web/lib/ai/extract.ts` + `web/app/api/extract/route.ts`, and how `extract()` in `app.js` calls the API and falls back to local behaviour with an honest label.
 

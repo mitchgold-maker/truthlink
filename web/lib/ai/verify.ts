@@ -36,7 +36,7 @@ export async function verifyEvidence(input: z.infer<typeof VerifyInput>) {
 
   // 2. Only undecided criteria go to the model, with snapshots replaced by a compact digest.
   let ai: z.infer<typeof VerifyOutput> | null = null;
-  let model = "rules", provider = "ProofPilot rules", aiError = "";
+  let model = "rules", provider = "TruthLink rules", aiError = "";
   if (open.length) {
     const evidence = input.evidence.map((e) => {
       const s = parseSnapshots([e])[0];
@@ -72,5 +72,5 @@ export async function verifyEvidence(input: z.infer<typeof VerifyInput>) {
     ruleChecks ? `${ruleChecks} of ${checks.length} criteria settled by measured Fusion data${aiChecks ? "" : " (no AI call needed)"}.` : "",
   ].filter(Boolean).join(" ") || (verdict === "pass" ? "All criteria met." : "Some criteria are not met.");
   const data: Output = { verdict, checks, summary, missing, ruleChecks, aiChecks };
-  return { data, model: open.length ? model : "rules", provider: open.length ? provider : "ProofPilot rules", latencyMs: Date.now() - started };
+  return { data, model: open.length ? model : "rules", provider: open.length ? provider : "TruthLink rules", latencyMs: Date.now() - started };
 }

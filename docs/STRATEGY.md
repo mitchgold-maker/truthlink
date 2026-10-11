@@ -1,4 +1,4 @@
-# ProofPilot strategy: verification design, enterprise path, track fit, spend safety
+# TruthLink strategy: verification design, enterprise path, track fit, spend safety
 
 ## 1. Verification ladder (cheapest proof first)
 Each criterion climbs only as far as it needs to. Most CAD criteria never reach an LLM.

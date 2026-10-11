@@ -1,11 +1,11 @@
-"""ProofPilot Watcher: a Fusion add-in that verifies on every save, on the engineer's machine.
+"""TruthLink Watcher: a Fusion add-in that verifies on every save, on the engineer's machine.
 
-On each save it takes a ProofPilot snapshot (mass, parameters, components, version history),
+On each save it takes a TruthLink snapshot (mass, parameters, components, version history),
 checks it locally against targets stored in the design as user parameters (`pp_max_mass_g`,
 `pp_min_version`, `pp_required` = comma-separated names), shows the result in Fusion, writes the
-snapshot to ~/ProofPilot/snapshots/, and posts it to the ProofPilot server.
+snapshot to ~/TruthLink/snapshots/, and posts it to the TruthLink server.
 
-Server URL: env PROOFPILOT_URL (default http://localhost:3000). No working time is inferred.
+Server URL: env TRUTHLINK_URL (default http://localhost:3000). No working time is inferred.
 """
 
 import json
@@ -19,11 +19,11 @@ import adsk.core
 import adsk.fusion
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "ProofPilotSnapshot"))
-from ProofPilotSnapshot import _snapshot  # noqa: E402
+sys.path.insert(0, os.path.join(HERE, "..", "TruthLinkSnapshot"))
+from TruthLinkSnapshot import _snapshot  # noqa: E402
 
-SERVER = os.environ.get("PROOFPILOT_URL", "http://localhost:3000").rstrip("/")
-OUT_DIR = os.path.join(os.path.expanduser("~"), "ProofPilot", "snapshots")
+SERVER = os.environ.get("TRUTHLINK_URL", "http://localhost:3000").rstrip("/")
+OUT_DIR = os.path.join(os.path.expanduser("~"), "TruthLink", "snapshots")
 _handlers = []
 _last_verdict = {}
 
@@ -67,7 +67,7 @@ def _post(snap):
         req = urllib.request.Request(
             SERVER + "/api/fusion/snapshot",
             data=json.dumps(snap).encode("utf-8"),
-            headers={"Content-Type": "application/json", "X-ProofPilot-Token": os.environ.get("PROOFPILOT_INGEST_TOKEN", "")},
+            headers={"Content-Type": "application/json", "x-truthlink-token": os.environ.get("TRUTHLINK_INGEST_TOKEN", "")},
             method="POST",
         )
         urllib.request.urlopen(req, timeout=8).read()
@@ -91,7 +91,7 @@ class SavedHandler(adsk.core.DocumentEventHandler):
 
             os.makedirs(OUT_DIR, exist_ok=True)
             safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in doc.name)
-            path = os.path.join(OUT_DIR, f"{safe}.proofpilot.json")
+            path = os.path.join(OUT_DIR, f"{safe}.truthlink.json")
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(snap, f, separators=(",", ":"))
             threading.Thread(target=_post, args=(snap,), daemon=True).start()
@@ -103,11 +103,11 @@ class SavedHandler(adsk.core.DocumentEventHandler):
                 if _last_verdict.get(doc.name) != verdict:
                     _last_verdict[doc.name] = verdict
                     app.userInterface.messageBox(
-                        f"ProofPilot check on save (v{snap.get('current_version')}): {'PASS' if verdict else 'NOT READY'}\n\n{lines}\n\nSnapshot sent to ProofPilot.",
-                        "ProofPilot",
+                        f"TruthLink check on save (v{snap.get('current_version')}): {'PASS' if verdict else 'NOT READY'}\n\n{lines}\n\nSnapshot sent to TruthLink.",
+                        "TruthLink",
                     )
         except Exception:
-            adsk.core.Application.get().userInterface.messageBox("ProofPilot watcher error:\n" + traceback.format_exc())
+            adsk.core.Application.get().userInterface.messageBox("TruthLink watcher error:\n" + traceback.format_exc())
 
 
 def run(context):

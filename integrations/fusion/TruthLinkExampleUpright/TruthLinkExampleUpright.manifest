@@ -1,9 +1,9 @@
 {
   "autodeskProduct": "Fusion",
   "type": "script",
-  "author": "ProofPilot",
+  "author": "TruthLink",
   "description": {
-    "": "Builds the fictional parametric front upright used in the ProofPilot demo."
+    "": "Builds the fictional parametric front upright used in the TruthLink demo."
   },
   "supportedOS": "windows|mac",
   "editEnabled": true

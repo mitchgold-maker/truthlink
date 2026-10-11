@@ -7,7 +7,7 @@ Brief: real-world work runs on guesswork; collect better data, model it precisel
 
 Positioning: built for large engineering organizations (aerospace and defense companies like Lockheed Martin and Boeing), proven first with student engineering club pilots.
 
-How ProofPilot answers it:
+How TruthLink answers it:
 - Replaces "I think it's done" with **verified evidence** per task.
 - Builds a **measured record of capability** (demonstrated skills from verified completions, not self-reported).
 - Models **capacity** (available hours, exams/PTO, load) to predict risk and pick replacements.
@@ -23,4 +23,4 @@ Student engineering clubs (non-profit student organisations) are our **pilot gro
 Never overstate: log exactly what each person said or committed to. Never imply Lockheed Martin, Boeing or any company is a customer, partner or endorser; they are the target market.
 
 ## Pitch line
-"ProofPilot knows what needs to get done, verifies what actually got done, and knows who can get the rest done."
+"TruthLink knows what needs to get done, verifies what actually got done, and knows who can get the rest done."

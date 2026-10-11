@@ -1,9 +1,9 @@
-"""ProofPilot evidence snapshot for Autodesk Fusion.
+"""TruthLink evidence snapshot for Autodesk Fusion.
 
 Run from Utilities > Scripts and Add-Ins. Reads facts from the active design
 (mass, volume, bounding box, user parameters, bodies and materials, version
-history) and saves them as <design>.proofpilot.json. Upload that file as task
-evidence in ProofPilot; the AI verifier checks acceptance criteria against
+history) and saves them as <design>.truthlink.json. Upload that file as task
+evidence in TruthLink; the AI verifier checks acceptance criteria against
 these measured values instead of a filename.
 
 Only facts Fusion reports are exported. Nothing is inferred, and no working
@@ -127,16 +127,16 @@ def run(context):
         ui = app.userInterface
         design = adsk.fusion.Design.cast(app.activeProduct)
         if not design:
-            ui.messageBox("Open a design first.", "ProofPilot")
+            ui.messageBox("Open a design first.", "TruthLink")
             return
 
         snap = _snapshot(app, design)
 
         dlg = ui.createFileDialog()
-        dlg.title = "Save ProofPilot evidence snapshot"
-        dlg.filter = "ProofPilot snapshot (*.json)"
+        dlg.title = "Save TruthLink evidence snapshot"
+        dlg.filter = "TruthLink snapshot (*.json)"
         safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in app.activeDocument.name)
-        dlg.initialFilename = f"{safe}.proofpilot.json"
+        dlg.initialFilename = f"{safe}.truthlink.json"
         if dlg.showSave() != adsk.core.DialogResults.DialogOK:
             return
         with open(dlg.filename, "w", encoding="utf-8") as f:
@@ -145,9 +145,9 @@ def run(context):
         ui.messageBox(
             f"Saved {dlg.filename}\n\nMass {snap['mass_g']} g · {snap['body_count']} bodies · "
             f"{len(snap['user_parameters'])} parameters · version {snap['current_version']}\n\n"
-            "Upload it as evidence on the task in ProofPilot.",
-            "ProofPilot",
+            "Upload it as evidence on the task in TruthLink.",
+            "TruthLink",
         )
     except Exception:
         if ui:
-            ui.messageBox("ProofPilot snapshot failed:\n" + traceback.format_exc())
+            ui.messageBox("TruthLink snapshot failed:\n" + traceback.format_exc())
