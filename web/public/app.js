@@ -644,7 +644,7 @@ function teamPage() {
       "People behind the mission",
       "Members & capacity",
       "Match demonstrated experience with the availability to help.",
-      `<button onclick="recommend('t1')">Try replacement demo →</button>`,
+      `<button data-ai-key="explain:t1" onclick="recommend('t1')">Try replacement demo →</button>`,
     ) +
     `<div class="team-grid">${state.people
       .map((p) => {
@@ -671,7 +671,7 @@ function togglePTO(id) {
 function profile(id) {
   let p = person(id);
   show(
-    `<button class="primary" onclick="generateHandoffPack('${id}')">Generate handoff pack</button><h2>${p.name}</h2><p>${p.role}</p><div class="evidence">${p.history} approved tasks · Declared skills: ${p.skills.join(", ")}<br>Approval records below show demonstrated task experience. Declared skills alone do not certify a member.</div><h3>Approved experience</h3>${(p.records || []).map((r) => `<div class="draft"><strong>${esc(r.title)}</strong><p>${esc(r.skills.join(" · "))} · Approved ${esc(r.approved_at)} · ${r.source === "fictional_seed" ? "Fictional seed record" : "Demo approval"}</p></div>`).join("")}<h3>Tasks in this workspace</h3>${state.tasks
+    `<button class="primary" data-ai-key="handoff:${id}" onclick="generateHandoffPack('${id}')">Generate handoff pack</button><h2>${p.name}</h2><p>${p.role}</p><div class="evidence">${p.history} approved tasks · Declared skills: ${p.skills.join(", ")}<br>Approval records below show demonstrated task experience. Declared skills alone do not certify a member.</div><h3>Approved experience</h3>${(p.records || []).map((r) => `<div class="draft"><strong>${esc(r.title)}</strong><p>${esc(r.skills.join(" · "))} · Approved ${esc(r.approved_at)} · ${r.source === "fictional_seed" ? "Fictional seed record" : "Demo approval"}</p></div>`).join("")}<h3>Tasks in this workspace</h3>${state.tasks
       .filter((t) => t.owner === id)
       .map(
         (t) =>
@@ -686,6 +686,7 @@ function recommendOwner(id) {
   recommend(ts[0].id);
 }
 async function recommend(id) {
+  if (aiOperations.has("explain:"+id)) return toast("Explanation is already running.");
   let t = state.tasks.find((t) => t.id === id);
   let candidates = state.people
     .filter(
@@ -710,7 +711,7 @@ async function recommend(id) {
   const slots = Array.from(modal.querySelectorAll("[data-explanation]")).slice(0, 3);
   const snapshot = JSON.stringify({ task: t, people: state.people, tasks: state.tasks });
   try {
-    const res = await fetch("/api/explain", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) });
+    const res = await aiFetch("explain:"+id,"Explaining coverage","/api/explain", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || "AI explanation failed");
     if (snapshot !== JSON.stringify({ task: t, people: state.people, tasks: state.tasks })) throw new Error("Workspace changed; reopen recommendations.");
@@ -718,7 +719,8 @@ async function recommend(id) {
       if (!modal.open || !modal.contains(slots[index])) return;
       slots[index].innerHTML = '<p>' + esc(explanation.rationale) + '</p><p>Risk: ' + esc(explanation.risks) + '</p><p class="hint">AI · ' + esc(json.provider) + ' · ' + esc(json.model) + '</p>';
     });
-  } catch {
+  } catch (e) {
+    toast("AI explanation failed: " + e.message + ". Rule-based ranking retained.");
     slots.forEach(slot => { if (modal.open && modal.contains(slot)) slot.innerHTML = '<p class="hint">Rule-based · AI explanation unavailable or workspace changed.</p>'; });
   }
 }
@@ -757,7 +759,7 @@ function review(id) {
     `<div class="eyebrow">${esc(t.project)} · ${t.type === "exists" ? "File presence check" : "Coordinator approval required"}</div><h2 style="margin-top:10px">${esc(t.title)}</h2><div class="row"><p>${esc(person(t.owner)?.name)} · Due ${esc(t.due)}</p>${badge(t)}</div>${active(t) ? `<label>Progress update</label><select aria-label="Update progress" onchange="setProgress('${t.id}',this.value)"><option value="">Choose an update…</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select>` : ""}<label>Acceptance criteria</label><div class="evidence">${esc(t.criteria)}</div><button class="small" onclick="specChange('${id}')">Record spec change</button>${active(t) && t.type === "manager" ? '<label>Decision reason (required for approval or changes)</label><input id="decisionWhy" maxlength="280" placeholder="Why is this decision right?"><label>Hours you actually spent (self-reported, optional)</label><input id="reportedHours" type="number" min="0" max="1000" step="0.25"><p class="hint">Recorded by Taylor, demo team lead.</p>' : ""}${t.aiReview ? `<label>AI review</label><div class="evidence"><span class="tag ${t.aiReview.verdict === "pass" ? "" : "amber"}">${esc(t.aiReview.verdict)}</span><p>${t.aiReview.checks.filter(c => c.method === "measured").length} of ${t.aiReview.checks.length} criteria measured from Fusion · ${t.aiReview.checks.filter(c => c.method === "ai").length} AI checks · ${t.aiReview.checks.filter(c => c.method === "human").length} need team lead</p><p>${esc(t.aiReview.summary)}</p>${t.aiReview.checks.map((c) => `<p><span class="tag" style="background:${c.method === "measured" ? "#e3efdf" : c.method === "ai" ? "#e1edff" : "#eee"};color:${c.method === "measured" ? "#385b2c" : c.method === "ai" ? "#234e89" : "#555"}">${c.method === "measured" ? "Measured" : c.method === "ai" ? "AI" : "Needs team lead"}</span> <strong>${esc(c.met)} · ${esc(c.criterion)}</strong><br>${esc(c.reason)}</p>`).join("")}${t.aiReview.missing.length ? `<p>Missing: ${esc(t.aiReview.missing.join("; "))}</p>` : ""}<p class="hint">AI · ${esc(t.aiReview.provider)} · ${esc(t.aiReview.model)} · ${esc(t.aiReview.at)}</p></div>` : ""}<label>Fusion document (optional)</label><input value="${esc(t.fusion_document || "")}" aria-label="Fusion document" onchange="setFusionDocument('${id}',this.value)">${t.fusion_document && active(t) ? `<button onclick="pullFusion('${id}')">Pull latest from Fusion</button>` : ""}${t.fusionDiff ? `<p>${esc(t.fusionDiff)}</p>` : ""}<label>Submitted evidence</label><div class="evidence">${t.evidence.length ? t.evidence.map((e) => "▧ " + esc(e)).join("<br>") : "No evidence submitted."}</div>${t.status !== "completed" ? `<input type="file" id="evidenceFile" multiple aria-label="Upload task evidence"><p class="hint">Text-like files are stored in this browser (up to 15,000 characters) and sent to the AI when you run a review. Other file contents cannot be read; their filenames alone do not prove quality.</p><p class="hint">Tip: upload a Fusion snapshot (*.truthlink.json) to verify mass, versions and components.</p><button style="margin-top:12px" onclick="attach('${id}')">Add evidence</button><label>Review result</label><div class="evidence">${esc(t.checkSource || "Not reviewed")}<br>${t.checked ? "Evidence checklist reviewed. Quality and suitability remain a coordinator decision." : "Evidence has not passed the demo checklist. File activity alone cannot prove completion."}</div>` : '<div class="evidence">Completed and recorded in the task history.</div>'}`,
     t.status === "completed"
       ? ""
-      : `<button onclick="checkEvidence('${id}')">Review evidence</button>${t.type === "manager" && t.checked ? `<button class="primary" onclick="approve('${id}')">Coordinator: approve</button>` : ""}${t.type === "manager" ? `<button onclick="reject('${id}')">Request changes</button>` : ""}`,
+      : `<button data-ai-key="verify:${id}" onclick="checkEvidence('${id}')">Review evidence</button>${t.type === "manager" && t.checked ? `<button class="primary" onclick="approve('${id}')">Coordinator: approve</button>` : ""}${t.type === "manager" ? `<button onclick="reject('${id}')">Request changes</button>` : ""}`,
   );
 }
 async function attach(id) {
@@ -824,7 +826,7 @@ async function checkEvidence(id) {
   });
   try {
     toast("Reviewing available evidence with AI…");
-    const res = await fetch("/api/verify", {
+    const res = await aiFetch("verify:"+id,"Reviewing evidence","/api/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -992,7 +994,7 @@ function meetingsPage() {
       "Meeting notes",
       "Capture the decisions. Review the assignments. Keep moving.",
     ) +
-    `<div class="grid"><section class="panel"><div class="panel-head"><h2>Import your notes</h2><span class="tag gray">AI extraction</span></div><div class="panel-body"><label style="display:block;font-size:12px;margin-bottom:8px">Initiative</label><select id="meetingProject" style="width:100%;margin-bottom:18px"><option>Chassis &amp; Suspension</option><option>Powertrain</option><option>Electronics &amp; Operations</option></select><label for="notes" style="font-size:12px;display:block;margin-bottom:10px">Paste meeting notes</label><textarea id="notes" placeholder="Alex will finish the kinematics report by 2026-10-14…">${sampleNotes}</textarea><div class="actions" style="margin-top:14px"><button class="primary" onclick="extract()">✧ Extract draft tasks</button><label class="small" style="cursor:pointer">Upload .txt <input type="file" accept=".txt" style="display:none" onchange="readNotes(this)"></label></div><p class="hint">An LLM drafts tasks, owners, dates and acceptance criteria; nothing is assigned until you approve. Falls back to a local parser if AI is unavailable.</p></div></section><section class="panel"><div class="panel-head"><h2>Your review matters</h2></div><div class="panel-body"><h3>01 &nbsp; Capture</h3><p>Bring in notes from your meeting.</p><h3 style="margin-top:24px">02 &nbsp; Confirm</h3><p>Check the task, owner, deadline, and effort. Ambiguous assignments need your judgment.</p><h3 style="margin-top:24px">03 &nbsp; Assign</h3><p>Only approved drafts enter the work ledger and update team capacity.</p></div></section></div><section id="draftArea" class="section-gap"></section>`
+    `<div class="grid"><section class="panel"><div class="panel-head"><h2>Import your notes</h2><span class="tag gray">AI extraction</span></div><div class="panel-body"><label style="display:block;font-size:12px;margin-bottom:8px">Initiative</label><select id="meetingProject" style="width:100%;margin-bottom:18px"><option>Chassis &amp; Suspension</option><option>Powertrain</option><option>Electronics &amp; Operations</option></select><label for="notes" style="font-size:12px;display:block;margin-bottom:10px">Paste meeting notes</label><textarea id="notes" placeholder="Alex will finish the kinematics report by 2026-10-14…">${sampleNotes}</textarea><div class="actions" style="margin-top:14px"><button class="primary" data-ai-key="extract" onclick="extract()">✧ Extract draft tasks</button><label class="small" style="cursor:pointer">Upload .txt <input type="file" accept=".txt" style="display:none" onchange="readNotes(this)"></label></div><p class="hint">An LLM drafts tasks, owners, dates and acceptance criteria; nothing is assigned until you approve. Falls back to a local parser if AI is unavailable.</p></div></section><section class="panel"><div class="panel-head"><h2>Your review matters</h2></div><div class="panel-body"><h3>01 &nbsp; Capture</h3><p>Bring in notes from your meeting.</p><h3 style="margin-top:24px">02 &nbsp; Confirm</h3><p>Check the task, owner, deadline, and effort. Ambiguous assignments need your judgment.</p><h3 style="margin-top:24px">03 &nbsp; Assign</h3><p>Only approved drafts enter the work ledger and update team capacity.</p></div></section></div><section id="draftArea" class="section-gap"></section>`
   );
 }
 function readNotes(input) {
@@ -1022,12 +1024,13 @@ function localExtract(notes) {
 }
 let extractSource = "Local parser";
 async function extract() {
+  if (aiOperations.has("extract")) return toast("Meeting extraction is already running.");
   let notes = document.getElementById("notes").value.trim();
   if (!notes) return toast("Add meeting notes first.");
   const area = document.getElementById("draftArea");
   area.innerHTML = `<section class="panel"><div class="panel-body"><p class="hint">Reading notes with AI…</p></div></section>`;
   try {
-    const res = await fetch("/api/extract", {
+    const res = await aiFetch("extract","Reading notes with Luminal","/api/extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1127,7 +1130,7 @@ function followupsPage() {
       "Specific nudges for missing evidence, blockers, and handoffs.",
       `<span class="tag gray">Drafts only · Slack not connected</span>`,
     ) +
-    `<section class="panel"><div class="panel-head"><h2>Suggested follow-ups</h2><span class="tag">${ts.length} drafts</span></div>${ts.map((t) => `<div class="review"><div class="row"><h3>${esc(t.title)}</h3>${badge(t)}</div><p>${esc(person(t.owner).name)} · ${person(t.owner).pto ? "Coverage needed" : t.status === "blocked" ? "Blocked" : t.due && t.due < new Date().toLocaleDateString("en-CA") ? "Overdue" : t.recurring === "weekly" && daysUntil(t.due) <= 2 ? "Due soon · Weekly logistics" : "Evidence missing"}</p><div class="evidence">${esc(message(t))}</div><p class="hint">${t.followupDraft && message(t) === t.followupDraft.message ? `AI draft · ${esc(t.followupDraft.provider)} · ${esc(t.followupDraft.model)} · ${esc(t.followupDraft.tone)}<br>Next step: ${esc(t.followupDraft.suggested_next_step)}` : esc(t.followupSource || "Template draft")}</p><div class="actions"><button class="small" onclick="message(state.tasks.find(t => t.id === '${t.id}'), true)" ${t.drafting ? "disabled" : ""}>Draft with AI</button><button class="small" onclick="copyFollowup('${t.id}')">Copy message</button><button class="small quiet" onclick="review('${t.id}')">View task →</button>${person(t.owner).pto ? `<button class="small" onclick="recommend('${t.id}')">Find coverage</button>` : ""}</div></div>`).join("") || '<div class="empty">No follow-ups needed.</div>'}</section><p class="hint">Template or labelled AI drafts. Copy to clipboard only; nothing is sent. AI drafts use supplied task facts and never infer hours worked.</p>`
+    `<section class="panel"><div class="panel-head"><h2>Suggested follow-ups</h2><span class="tag">${ts.length} drafts</span></div>${ts.map((t) => `<div class="review"><div class="row"><h3>${esc(t.title)}</h3>${badge(t)}</div><p>${esc(person(t.owner).name)} · ${person(t.owner).pto ? "Coverage needed" : t.status === "blocked" ? "Blocked" : t.due && t.due < new Date().toLocaleDateString("en-CA") ? "Overdue" : t.recurring === "weekly" && daysUntil(t.due) <= 2 ? "Due soon · Weekly logistics" : "Evidence missing"}</p><div class="evidence">${esc(message(t))}</div><p class="hint">${t.followupDraft && message(t) === t.followupDraft.message ? `AI draft · ${esc(t.followupDraft.provider)} · ${esc(t.followupDraft.model)} · ${esc(t.followupDraft.tone)}<br>Next step: ${esc(t.followupDraft.suggested_next_step)}` : esc(t.followupSource || "Template draft")}</p><div class="actions"><button class="small" data-ai-key="followup:${t.id}" onclick="message(state.tasks.find(t => t.id === '${t.id}'), true)" ${t.drafting ? "disabled" : ""}>Draft with AI</button><button class="small" onclick="copyFollowup('${t.id}')">Copy message</button><button class="small quiet" onclick="review('${t.id}')">View task →</button>${person(t.owner).pto ? `<button class="small" data-ai-key="explain:${t.id}" onclick="recommend('${t.id}')">Find coverage</button>` : ""}</div></div>`).join("") || '<div class="empty">No follow-ups needed.</div>'}</section><p class="hint">Template or labelled AI drafts. Copy to clipboard only; nothing is sent. AI drafts use supplied task facts and never infer hours worked.</p>`
   );
 }
 function message(t, draftWithAI = false) {
@@ -1146,7 +1149,7 @@ function message(t, draftWithAI = false) {
       t.drafting = true;
       try {
         toast("Drafting follow-up with AI…");
-        const res = await fetch("/api/followup", {
+        const res = await aiFetch("followup:"+t.id,"Drafting follow-up","/api/followup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1373,7 +1376,7 @@ function inferSkills(title) {
             : ["Project management"];
 }
 function demoGuide() {
-  return `<section class="demo-guide"><div class="row"><div><span class="eyebrow">Racing team pilot · Guided demo</span><h3 style="margin:8px 0 0">From meeting notes to a confident handoff.</h3></div><button class="small quiet" onclick="go('integrations')">Demo controls</button></div><div class="demo-steps"><button onclick="go('meetings')"><b>01</b><span>Capture commitments<small>Review tasks from meeting notes</small></span></button><button onclick="review('t2')"><b>02</b><span>Approve real deliverables<small>Grow Jordan's verified CAD experience</small></span></button><button onclick="go('team')"><b>03</b><span>Handle time off<small>Cover exam-week availability</small></span></button><button onclick="recommend('t1')"><b>04</b><span>Find the right coverage<small>Compare skills, history, and capacity</small></span></button></div></section>`;
+  return `<section class="demo-guide"><div class="row"><div><span class="eyebrow">Racing team pilot · Guided demo</span><h3 style="margin:8px 0 0">From meeting notes to a confident handoff.</h3></div><button class="small quiet" onclick="go('integrations')">Demo controls</button></div><div class="demo-steps"><button onclick="go('meetings')"><b>01</b><span>Capture commitments<small>Review tasks from meeting notes</small></span></button><button onclick="review('t2')"><b>02</b><span>Approve real deliverables<small>Grow Jordan's verified CAD experience</small></span></button><button onclick="go('team')"><b>03</b><span>Handle time off<small>Cover exam-week availability</small></span></button><button data-ai-key="explain:t1" onclick="recommend('t1')"><b>04</b><span>Find the right coverage<small>Compare skills, history, and capacity</small></span></button></div></section>`;
 }
 function setProgress(id, value) {
   if (!value) return;
@@ -1462,15 +1465,17 @@ function handoffTemplate(input) {
   };
 }
 async function generateHandoffPack(id) {
+  if (aiOperations.has("handoff:"+id)) return toast("Handoff generation is already running.");
   let input = handoffInput(id), pack, source;
   toast("Preparing handoff pack…");
   try {
-    const res = await fetch("/api/handoff", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input)});
+    const res = await aiFetch("handoff:"+id,"Preparing handoff","/api/handoff", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input)});
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || "Handoff unavailable");
     if (JSON.stringify(input) !== JSON.stringify(handoffInput(id))) throw new Error("Workspace changed");
     pack = json; source = "AI · " + json.provider + " · " + json.model;
-  } catch {
+  } catch (e) {
+    toast("AI handoff failed: " + e.message + ". Using Template (no AI).");
     input = handoffInput(id); pack = handoffTemplate(input); source = "Template (no AI)";
   }
   handoffCurrent = {input,pack,source};
@@ -1640,6 +1645,39 @@ async function pullFusion(id) {
     await checkEvidence(id);
   } catch (e) { toast("Fusion pull failed: " + e.message + ". Existing evidence retained; upload a snapshot instead."); }
   finally { delete t.pullingFusion; }
+}
+const aiOperations = new Map();
+function paintAIProgress() {
+  const descriptions = [];
+  for (const [key,op] of aiOperations) {
+    const seconds = Math.floor((Date.now()-op.started)/1000);
+    descriptions.push(op.label + "… " + seconds + " s");
+    document.querySelectorAll("[data-ai-key]").forEach(button => {
+      if (button.dataset.aiKey !== key) return;
+      if (!op.buttons.has(button)) op.buttons.set(button,{disabled:button.disabled,text:button.textContent});
+      button.disabled = true; button.textContent = op.buttons.get(button).text + " · " + seconds + " s";
+    });
+  }
+  const status = document.getElementById("aiStatus");
+  if (status) { status.hidden = !descriptions.length; status.textContent = descriptions.join(" · "); }
+}
+async function aiFetch(key, label, url, options) {
+  if (aiOperations.has(key)) throw new Error("This AI request is already running");
+  const operation = {label,started:Date.now(),buttons:new Map()};
+  aiOperations.set(key,operation); paintAIProgress();
+  const interval = setInterval(paintAIProgress,1000);
+  let deadline;
+  try {
+    const json = await Promise.race([
+      apiJson(url,options,45000),
+      new Promise((_,reject) => { deadline = setTimeout(()=>reject(new Error("AI timed out after 45 s")),45000); })
+    ]);
+    return {ok:true,json:async()=>json};
+  } finally {
+    clearInterval(interval); clearTimeout(deadline); aiOperations.delete(key);
+    operation.buttons.forEach((original,button) => {button.disabled=original.disabled;button.textContent=original.text;});
+    paintAIProgress();
+  }
 }
 render();
 
