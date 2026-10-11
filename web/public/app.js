@@ -349,6 +349,7 @@ const seed = {
     },
   ],
 };
+seed.tasks.push({id:"logistics-food",title:"Order food for Thursday build night",project:"Electronics & Operations",owner:"taylor",due:"2026-10-15",hours:0.5,skills:["Project management"],status:"todo",type:"exists",criteria:"Upload one non-empty food order confirmation.",evidence:[],checked:false,required_evidence:[],recurring:"weekly",recurring_series:"logistics-food"});
 seed.decisions = [
   {id:"seed-d1",at:"2026-10-07T10:00:00",by:"alex",kind:"spec_change",task_id:"t1",summary:"Switched upright from 6061 to 7075 for stiffness",why:"Explore stiffness improvement",superseded_by:"seed-d2",source:"fictional_seed"},
   {id:"seed-d2",at:"2026-10-08T10:00:00",by:"alex",kind:"spec_change",task_id:"t1",summary:"Back to 6061: 7075 stock lead time",why:"7075 stock would delay the build",superseded_by:null,source:"fictional_seed"},
@@ -361,6 +362,7 @@ try {
 } catch {
   state = structuredClone(seed);
 }
+if (!state.tasks.some(t => t.id === "logistics-food" || t.recurring_series === "logistics-food")) state.tasks.push(structuredClone(seed.tasks.find(t => t.id === "logistics-food")));
 state.decisions ||= structuredClone(seed.decisions);
 state.tasks.forEach(t => t.updated_at ||= "2026-10-10T09:00:00");
 const taskChanges = new Map(state.tasks.map(t => [t.id, JSON.stringify([t.status,t.owner,t.evidence,t.evidenceDocs])]));
@@ -416,11 +418,13 @@ const status = (t) =>
     blocked: "Blocked",
   })[t.status] || t.status;
 const badge = (t) =>
-  `<span class="tag ${t.status === "pending_approval" ? "amber" : t.status === "blocked" ? "red" : t.status === "completed" ? "" : "gray"}">${status(t)}</span>`;
+  `<span class="tag ${t.status === "pending_approval" ? "amber" : t.status === "blocked" ? "red" : t.status === "completed" ? "" : "gray"}">${status(t)}</span>${t.recurring === "weekly" ? ' <span class="tag gray">Weekly</span>' : ""}`;
 function save() {
   for (const t of state.tasks) {
     const signature = JSON.stringify([t.status,t.owner,t.evidence,t.evidenceDocs]);
-    if (taskChanges.get(t.id) !== signature) t.updated_at = new Date().toISOString();
+    const previous = taskChanges.get(t.id);
+    if (t.recurring === "weekly" && t.status === "completed" && previous && JSON.parse(previous)[0] !== "completed") nextWeeklyTask(t);
+    if (previous !== signature) t.updated_at = new Date().toISOString();
     taskChanges.set(t.id, signature);
   }
   try {
@@ -621,7 +625,7 @@ function insightsPage() {
     '<section class="panel section-gap"><div class="panel-head"><h2>Evidence quality</h2></div><div class="panel-body"><div class="stats">' +
     Object.entries(verdicts).map(([verdict,count]) => `<div class="stat"><span>${esc(verdict)}</span><strong>${count}</strong></div>`).join("") +
     `</div><p>${reviewed} tasks with a last AI review · ${state.tasks.length - reviewed} without a recorded AI verdict. AI pass is not coordinator approval.</p><h3>Most common missing items</h3>` +
-    (missing.length ? missing.slice(0,5).map(item => `<p>${esc(item.label)} <span class="tag gray">${item.count} ${item.count === 1 ? "task" : "tasks"}</span></p>`).join("") : '<p>No missing items recorded in AI reviews.</p>') + '</div></section>';
+    (missing.length ? missing.slice(0,5).map(item => `<p>${esc(item.label)} <span class="tag gray">${item.count} ${item.count === 1 ? "task" : "tasks"}</span></p>`).join("") : '<p>No missing items recorded in AI reviews.</p>') + '</div></section>' + ownershipMap();
 }
 function teamPage() {
   return (
@@ -921,7 +925,7 @@ function approve(id) {
 }
 function newTask() {
   show(
-    `<h2>Create a task</h2><label>Title</label><input id="newTitle" placeholder="What needs to get done?"><label>Owner</label><select id="newOwner">${state.people.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select><label>Initiative</label><select id="newProject">${["Chassis & Suspension", "Powertrain", "Electronics & Operations"].map((p) => `<option>${p}</option>`).join("")}</select><label>Due date</label><input id="newDue" type="date" value="2026-10-16"><label>Estimated remaining hours</label><input id="newHours" type="number" min="0.5" step="0.5" value="4"><label>Required skills (comma separated)</label><input id="newSkills" placeholder="Suspension design, CAD"><label>Acceptance criteria</label><input id="newCriteria" placeholder="Required deliverables and checks">`,
+    `<h2>Create a task</h2><label>Title</label><input id="newTitle" placeholder="What needs to get done?"><label>Owner</label><select id="newOwner">${state.people.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select><label>Initiative</label><select id="newProject">${["Chassis & Suspension", "Powertrain", "Electronics & Operations"].map((p) => `<option>${p}</option>`).join("")}</select><label>Recurrence</label><select id="newRecurring"><option value="">One time</option><option value="weekly">Weekly</option></select><label>Due date</label><input id="newDue" type="date" value="2026-10-16"><label>Estimated remaining hours</label><input id="newHours" type="number" min="0.5" step="0.5" value="4"><label>Required skills (comma separated)</label><input id="newSkills" placeholder="Suspension design, CAD"><label>Acceptance criteria</label><input id="newCriteria" placeholder="Required deliverables and checks">`,
     `<button class="primary" onclick="createTask()">Create task</button>`,
   );
 }
@@ -931,6 +935,8 @@ function createTask() {
   let hours = Number(document.getElementById("newHours").value);
   if (!Number.isFinite(hours) || hours <= 0)
     return toast("Use a positive effort estimate.");
+  const recurring = document.getElementById("newRecurring").value;
+  if (recurring === "weekly" && !document.getElementById("newDue").value) return toast("Weekly tasks need a due date.");
   state.tasks.push({
     id: "t" + Date.now(),
     title,
@@ -943,6 +949,7 @@ function createTask() {
       .value.split(",")
       .map((s) => s.trim())
       .filter(Boolean),
+    recurring: recurring === "weekly" ? "weekly" : undefined,
     status: "todo",
     type: "manager",
     criteria:
@@ -1088,14 +1095,11 @@ function importDrafts() {
   toast("Approved tasks added. Member commitments updated.");
 }
 function followupsPage() {
-  let ts = state.tasks.filter(
-    (t) =>
-      active(t) &&
-      (!t.evidence.length ||
-        person(t.owner)?.pto ||
-        t.status === "blocked" ||
-        (t.due && t.due < new Date().toLocaleDateString("en-CA"))),
-  );
+  let ts = state.tasks.filter(t => active(t) && (
+    (t.recurring === "weekly" && daysUntil(t.due) <= 2) ||
+    (t.recurring !== "weekly" && !t.evidence.length) ||
+    person(t.owner)?.pto || t.status === "blocked" || daysUntil(t.due) < 0
+  ));
   return (
     heading(
       "Keep the loop moving",
@@ -1103,7 +1107,7 @@ function followupsPage() {
       "Specific nudges for missing evidence, blockers, and handoffs.",
       `<span class="tag gray">Drafts only · Slack not connected</span>`,
     ) +
-    `<section class="panel"><div class="panel-head"><h2>Suggested follow-ups</h2><span class="tag">${ts.length} drafts</span></div>${ts.map((t) => `<div class="review"><div class="row"><h3>${esc(t.title)}</h3>${badge(t)}</div><p>${esc(person(t.owner).name)} · ${person(t.owner).pto ? "Coverage needed" : t.status === "blocked" ? "Blocked" : t.due && t.due < new Date().toLocaleDateString("en-CA") ? "Overdue" : "Evidence missing"}</p><div class="evidence">${esc(message(t))}</div><p class="hint">${t.followupDraft && message(t) === t.followupDraft.message ? `AI draft · ${esc(t.followupDraft.provider)} · ${esc(t.followupDraft.model)} · ${esc(t.followupDraft.tone)}<br>Next step: ${esc(t.followupDraft.suggested_next_step)}` : esc(t.followupSource || "Template draft")}</p><div class="actions"><button class="small" onclick="message(state.tasks.find(t => t.id === '${t.id}'), true)" ${t.drafting ? "disabled" : ""}>Draft with AI</button><button class="small" onclick="copyFollowup('${t.id}')">Copy message</button><button class="small quiet" onclick="review('${t.id}')">View task →</button>${person(t.owner).pto ? `<button class="small" onclick="recommend('${t.id}')">Find coverage</button>` : ""}</div></div>`).join("") || '<div class="empty">No follow-ups needed.</div>'}</section><p class="hint">Template or labelled AI drafts. Copy to clipboard only; nothing is sent. AI drafts use supplied task facts and never infer hours worked.</p>`
+    `<section class="panel"><div class="panel-head"><h2>Suggested follow-ups</h2><span class="tag">${ts.length} drafts</span></div>${ts.map((t) => `<div class="review"><div class="row"><h3>${esc(t.title)}</h3>${badge(t)}</div><p>${esc(person(t.owner).name)} · ${person(t.owner).pto ? "Coverage needed" : t.status === "blocked" ? "Blocked" : t.due && t.due < new Date().toLocaleDateString("en-CA") ? "Overdue" : t.recurring === "weekly" && daysUntil(t.due) <= 2 ? "Due soon · Weekly logistics" : "Evidence missing"}</p><div class="evidence">${esc(message(t))}</div><p class="hint">${t.followupDraft && message(t) === t.followupDraft.message ? `AI draft · ${esc(t.followupDraft.provider)} · ${esc(t.followupDraft.model)} · ${esc(t.followupDraft.tone)}<br>Next step: ${esc(t.followupDraft.suggested_next_step)}` : esc(t.followupSource || "Template draft")}</p><div class="actions"><button class="small" onclick="message(state.tasks.find(t => t.id === '${t.id}'), true)" ${t.drafting ? "disabled" : ""}>Draft with AI</button><button class="small" onclick="copyFollowup('${t.id}')">Copy message</button><button class="small quiet" onclick="review('${t.id}')">View task →</button>${person(t.owner).pto ? `<button class="small" onclick="recommend('${t.id}')">Find coverage</button>` : ""}</div></div>`).join("") || '<div class="empty">No follow-ups needed.</div>'}</section><p class="hint">Template or labelled AI drafts. Copy to clipboard only; nothing is sent. AI drafts use supplied task facts and never infer hours worked.</p>`
   );
 }
 function message(t, draftWithAI = false) {
@@ -1458,5 +1462,33 @@ function downloadHandoff() {
   const lines = ["# Handoff: " + input.member.name,source,input.context_notes,pack.summary,"## Owned areas",...pack.owned_areas.map(s => "- " + s),"## How things work",...pack.how_things_work.map(s => "- " + s),"## Open work",...pack.open_work.map(w => "- " + w.task + " (" + w.status + "): " + w.next_step),"## Lessons and decisions",...pack.lessons.map(s => "- " + s),"## Who to ask",...pack.who_to_ask.map(s => "- " + s)];
   const url = URL.createObjectURL(new Blob([lines.join("\n\n")],{type:"text/markdown;charset=utf-8"}));
   const a = document.createElement("a");a.href=url;a.download=input.member.name.toLowerCase().replace(/[^a-z0-9]+/g,"-")+"-handoff.md";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function daysUntil(due) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due || "")) return Infinity;
+  const now = new Date(), date = new Date(due + "T00:00:00Z");
+  return Math.round((date.getTime() - Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())) / 86400000);
+}
+function nextWeeklyTask(t) {
+  const date = new Date(t.due + "T12:00:00Z");
+  if (!Number.isFinite(date.getTime())) return toast("Set a valid due date before scheduling the next weekly task.");
+  date.setUTCDate(date.getUTCDate() + 7);
+  const due = date.toISOString().slice(0,10), series = t.recurring_series || t.id, id = "weekly:" + series + ":" + due;
+  if (state.tasks.some(task => task.id === id || (task.recurring_series === series && task.due === due))) return;
+  const next = { ...structuredClone(t),id,due,recurring_series:series,status:"todo",checked:false,evidence:[],evidenceDocs:[],updated_at:new Date().toISOString() };
+  delete next.aiReview; delete next.checkSource; delete next.followupDraft; delete next.followupSource; delete next.verifying; delete next.drafting;
+  state.tasks.push(next);
+}
+function ownershipMap() {
+  const subsystems = [...new Set(state.tasks.map(t => t.project || "Unassigned"))].sort();
+  return '<section class="panel section-gap"><div class="panel-head"><h2>Ownership map</h2></div><div class="table-wrap"><table><thead><tr><th>Subsystem</th><th>Owner</th><th>Suggested backup</th></tr></thead><tbody>' + subsystems.map(project => {
+    const tasks = state.tasks.filter(t => (t.project || "Unassigned") === project && active(t));
+    const owners = [...new Set(tasks.map(t => t.owner))];
+    if (!owners.length) return `<tr><td>${esc(project)}</td><td>No active assignments</td><td>—</td></tr>`;
+    return owners.map(owner => {
+      const owned = tasks.filter(t => t.owner === owner), skills = [...new Set(owned.flatMap(t => t.skills || []))], hours = owned.reduce((sum,t) => sum + t.hours,0), aggregate = {skills,hours};
+      const backup = state.people.filter(p => p.id !== owner && !p.pto && skills.every(skill => p.skills.includes(skill))).map(p => ({p,free:p.capacity-load(p.id)})).sort((a,b) => (b.free >= hours)-(a.free >= hours) || experience(b.p,aggregate)-experience(a.p,aggregate) || b.free-a.free)[0];
+      return `<tr><td>${esc(project)}<p class="hint">${owned.length} active tasks · ${hours}h estimated</p></td><td>${esc(person(owner)?.name || "Unassigned")}${person(owner)?.pto ? ' <span class="tag amber">Needs coverage</span>' : ""}</td><td>${backup ? `${esc(backup.p.name)}<p class="hint">${experience(backup.p,aggregate)} matching approved records · ${Math.max(0,backup.free)}h available${backup.free < hours ? " · Insufficient capacity" : ""}</p>` : "No qualified available backup"}</td></tr>`;
+    }).join("");
+  }).join("") + '</tbody></table></div><div class="panel-body"><p class="hint">Backups use the same deterministic skill, experience and capacity ranking as replacements. Suggestions require team-lead approval; no assignments change.</p></div></section>';
 }
 render();
