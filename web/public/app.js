@@ -593,7 +593,7 @@ function recommendOwner(id) {
   if (!ts.length) return toast("No active tasks need coverage.");
   recommend(ts[0].id);
 }
-function recommend(id) {
+async function recommend(id) {
   let t = state.tasks.find((t) => t.id === id);
   let candidates = state.people
     .filter(
@@ -609,9 +609,26 @@ function recommend(id) {
         experience(b.p, t) - experience(a.p, t) ||
         b.free - a.free,
     );
+  const request = { task: { title: t.title, skills: t.skills, hours: t.hours, criteria: t.criteria }, candidates: candidates.slice(0, 3).map(({p,h,free}) => ({ id: p.id, name: p.name, skills: p.skills, demonstrated_experience: experience(p,t), free_hours: free, assigned_hours: h })) };
   show(
-    `<div class="eyebrow">Replacement recommendations · Rule-based demo</div><h2 style="margin-top:10px">Cover ${esc(t.title)}</h2><p>${esc(person(t.owner)?.name)} is assigned ${t.hours} hours. All required skills must match.</p>${candidates.map(({ p, h, free }) => `<div class="draft"><div class="row"><h3>${p.name}</h3><span class="tag ${free < t.hours ? "amber" : ""}">${free < t.hours ? "Insufficient capacity" : "Qualified & available"}</span></div><p>${p.skills.join(" · ")}<br>${experience(p, t)} approved tasks with matching skills · ${Math.max(0, free)}h available · ${h}h already assigned</p><button class="small ${free >= t.hours ? "primary" : ""}" ${free < t.hours ? "disabled" : ""} onclick="reassign('${t.id}','${p.id}')" style="margin-top:12px">Approve reassignment</button></div>`).join("") || '<div class="empty">No eligible replacements. Adjust scope or availability.</div>'}<p class="hint">Recommendations compare declared skills, time off, matching approved task history, and estimated capacity. A coordinator makes the assignment.</p>`,
+    `<div class="eyebrow">Replacement recommendations · Rule-based demo</div><h2 style="margin-top:10px">Cover ${esc(t.title)}</h2><p>${esc(person(t.owner)?.name)} is assigned ${t.hours} hours. All required skills must match.</p>${candidates.map(({ p, h, free }, index) => `<div class="draft"><div class="row"><h3>${p.name}</h3><span class="tag ${free < t.hours ? "amber" : ""}">${free < t.hours ? "Insufficient capacity" : "Qualified & available"}</span></div><p>${p.skills.join(" · ")}<br>${experience(p, t)} approved tasks with matching skills · ${Math.max(0, free)}h available · ${h}h already assigned</p><div data-explanation="${index}"><p class="hint">Rule-based${index < 3 ? " · AI explanation pending…" : ""}</p></div><button class="small ${free >= t.hours ? "primary" : ""}" ${free < t.hours ? "disabled" : ""} onclick="reassign('${t.id}','${p.id}')" style="margin-top:12px">Approve reassignment</button></div>`).join("") || '<div class="empty">No eligible replacements. Adjust scope or availability.</div>'}<p class="hint">Recommendations compare declared skills, time off, matching approved task history, and estimated capacity. A coordinator makes the assignment.</p>`,
   );
+  if (!request.candidates.length) return;
+  const modal = document.getElementById("modal");
+  const slots = Array.from(modal.querySelectorAll("[data-explanation]")).slice(0, 3);
+  const snapshot = JSON.stringify({ task: t, people: state.people, tasks: state.tasks });
+  try {
+    const res = await fetch("/api/explain", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || "AI explanation failed");
+    if (snapshot !== JSON.stringify({ task: t, people: state.people, tasks: state.tasks })) throw new Error("Workspace changed; reopen recommendations.");
+    json.recommendations.forEach((explanation, index) => {
+      if (!modal.open || !modal.contains(slots[index])) return;
+      slots[index].innerHTML = '<p>' + esc(explanation.rationale) + '</p><p>Risk: ' + esc(explanation.risks) + '</p><p class="hint">AI · ' + esc(json.provider) + ' · ' + esc(json.model) + '</p>';
+    });
+  } catch {
+    slots.forEach(slot => { if (modal.open && modal.contains(slot)) slot.innerHTML = '<p class="hint">Rule-based · AI explanation unavailable or workspace changed.</p>'; });
+  }
 }
 function reassign(tid, pid) {
   let t = state.tasks.find((t) => t.id === tid),
