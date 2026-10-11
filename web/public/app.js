@@ -1321,15 +1321,26 @@ async function loadIntegrationHealth() {
   if (page === "integrations") render();
 }
 function integrationsPage() {
-  return heading("Connection evidence", "Integrations", "Live add-in snapshots and explicit connection status.") +
-    `<section class="panel"><div class="panel-head"><h2>Autodesk Fusion</h2><span class="tag ${fusionDesigns ? "" : "gray"}">${fusionDesigns ? "Connected via add-in" : fusionLoading ? "Checking received designs…" : "Status unconfirmed"}</span><button onclick="loadFusionDesigns()">Refresh designs</button></div><div class="table-wrap"><table><thead><tr><th>Design</th><th>Mass</th><th>Version</th><th>Last received</th></tr></thead><tbody>${(fusionDesigns || []).map(d => `<tr><td>${esc(d.document)}</td><td>${Number.isFinite(d.mass_g) ? esc(d.mass_g)+" g" : "Not measured"}</td><td>${d.current_version == null ? "Unsaved" : "v"+esc(d.current_version)}</td><td>${esc(d.received_at || "Not recorded")}</td></tr>`).join("")}</tbody></table></div><div class="panel-body"><p>${fusionDesigns?.length ? "Snapshots received from the on-device TruthLink add-in." : fusionDesigns ? "No designs received yet. Save a design with the add-in enabled." : "No live design list available. You can upload a snapshot manually."}</p></div></section>` +
-    `<div class="integration-grid section-gap">${[
-      ["Slack","Not connected","Follow-up drafts are copy-to-clipboard only. No messages are sent."],
-      ["Google Drive","Not connected","Evidence is supplied through uploads or Fusion snapshots."],
-      ["Bloomerang","Not connected","No donor or sponsor account is connected."],
-      ["MongoDB Atlas",syncStatus.startsWith("Synced") ? "Connected" : "Not connected","Workspace state uses Atlas when available, with device storage as fallback. Demo role controls are not authentication."],
-      ["AI",integrationHealth?.ai ? "Configured · " + integrationHealth.provider : "Not connected","AI calls use the server spend guard; unavailable calls fall back to clearly labelled local behavior."]
-    ].map(([name,label,description]) => `<section class="panel integration"><div class="row"><h2>${esc(name)}</h2><span class="tag gray">${esc(label)}</span></div><p>${esc(description)}</p></section>`).join("")}</div><section class="panel section-gap"><div class="panel-head"><h2>Demo workspace controls</h2></div><div class="panel-body"><p>Export current records or reset to the fictional racing-team scenario.</p><div class="actions"><button onclick="exportData()">Export JSON</button><button onclick="resetDialog()">Reset demo</button><button onclick="demoScript()">Demo script</button></div></div></section>`;
+  const sl = slackSettings();
+  const slackOk = slackStatus?.configured;
+  const card = (name, status, ok, body, actions = "") =>
+    `<section class="panel integration"><div class="row"><h2>${esc(name)}</h2><span class="tag ${ok === true ? "" : ok === "warn" ? "amber" : "gray"}">${esc(status)}</span></div>${body}${actions ? `<div class="actions" style="margin-top:12px">${actions}</div>` : ""}</section>`;
+  return heading("Connect your tools", "Integrations", "TruthLink reads where work already happens and reports back there.") +
+    `<div class="integration-grid">${[
+      card("Slack", slackOk ? (slackStatus.source === "workspace" ? "Connected" : "Connected (server)") : "Not connected", slackOk,
+        `<p>Autopilot reads meeting minutes from your channel, drafts tasks, and messages owners when work falls behind.${sl ? ` Channel <b>${esc(sl.channelName || sl.channel)}</b>${sl.team ? " in " + esc(sl.team) : ""}.` : ""}</p>`,
+        slackOk ? `<button class="small" onclick="slackTestMessage(this)">Send test message</button>${sl ? '<button class="small quiet" onclick="slackDisconnect()">Disconnect</button>' : ""}` : `<button class="primary small" onclick="slackConnectDialog()">Connect Slack</button>`),
+      card("Autodesk Fusion", fusionDesigns?.length ? "Receiving designs" : "Add-in ready", fusionDesigns?.length ? true : "warn",
+        `<p>The TruthLink add-in runs inside Fusion on the engineer's machine. On every save it checks targets stored in the design and sends measured facts (mass, versions, features) as evidence.</p>
+        <ol class="hint" style="padding-left:18px;margin:8px 0 0"><li>Download and unzip the add-in.</li><li>Fusion → Utilities → Scripts and Add-Ins → <b>+</b> → pick <b>TruthLinkWatcher</b> → Run.</li><li>Save a design. Upload its <code>.truthlink.json</code> snapshot to a task, or let it post here.</li></ol>
+        ${fusionDesigns?.length ? `<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>Design</th><th>Mass</th><th>Version</th></tr></thead><tbody>${fusionDesigns.map((d) => `<tr><td>${esc(d.document)}</td><td>${Number.isFinite(d.mass_g) ? esc(d.mass_g) + " g" : "—"}</td><td>${d.current_version == null ? "Unsaved" : "v" + esc(d.current_version)}</td></tr>`).join("")}</tbody></table></div>` : ""}`,
+        `<a class="button primary small" href="/downloads/truthlink-fusion-addins.zip" download>Download add-in</a><button class="small" onclick="loadFusionDesigns()">${fusionLoading ? "Checking…" : "Refresh designs"}</button>`),
+      card("AI engine", integrationHealth?.ai ? "Connected" : "Not connected", integrationHealth?.ai ? true : false,
+        `<p>${integrationHealth?.ai ? `Running on <b>${esc(integrationHealth.provider)}</b> · ${esc(integrationHealth.model)}.` : "No AI provider configured."} Every AI answer is validated before it touches your records, and spend limits protect credits.</p>`),
+      card("AWS", "Hosted on AWS Amplify", true, `<p>TruthLink runs on AWS Amplify. Billing through AWS App Monetization is being set up.</p>`),
+      card("Google Drive", "Coming soon", false, `<p>Pull deliverables (reports, drawings) straight from shared drives as evidence.</p>`, `<button class="small quiet" onclick="toast('Thanks! Google Drive is on the roadmap.')">Request</button>`),
+      card("GitHub", "Coming soon", false, `<p>Use pull requests and CI results as evidence for firmware and software tasks.</p>`, `<button class="small quiet" onclick="toast('Thanks! GitHub is on the roadmap.')">Request</button>`),
+    ].join("")}</div>`;
 }
 function exportData() {
   let blob = new Blob(
@@ -1665,7 +1676,7 @@ async function loadSharedState() {
     else { syncDirty = false; syncBadge("Synced · MongoDB Atlas"); }
   } catch (e) {
     stateReady = true; syncBadge("Offline · saved on this device");
-    toast("Shared workspace unavailable: " + e.message + ". Using device records.");
+    if (!/not configured/i.test(e.message)) toast("Shared workspace unavailable: " + e.message + ". Using device records.");
   }
 }
 let eventQueue = [], eventTimer;
@@ -1978,3 +1989,59 @@ function autopilotPage() {
     </div></section>`;
 }
 setInterval(() => { if (agentState().enabled && document.visibilityState === "visible") runAgent(); }, AGENT_INTERVAL_MS);
+
+// ---------------------------------------------------------------------------
+// Slack connection from the Integrations page. Bot token + channel are kept in this browser and
+// sent only to TruthLink's own /api/slack and /api/agent routes over HTTPS.
+const SLACK_KEY = "truthlink-slack";
+function slackSettings() { try { return JSON.parse(localStorage.getItem(SLACK_KEY)); } catch { return null; } }
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (url, opts = {}) => {
+  const sl = slackSettings();
+  if (sl && typeof url === "string" && /^\/api\/(slack|agent)/.test(url)) {
+    opts = { ...opts, headers: { ...(opts.headers || {}), "x-slack-token": sl.token, "x-slack-channel": sl.channel } };
+  }
+  return nativeFetch(url, opts);
+};
+let slackStatus = null;
+async function loadSlackStatus() {
+  try { slackStatus = await (await fetch("/api/slack")).json(); } catch { slackStatus = null; }
+  agentSlack = slackStatus?.configured ?? agentSlack;
+  if (page === "integrations" || page === "autopilot") render();
+}
+function slackConnectDialog() {
+  show(`<h2>Connect Slack</h2>
+    <ol class="hint" style="padding-left:18px"><li>At <b>api.slack.com/apps</b>: Create New App → From scratch.</li><li>OAuth &amp; Permissions → Bot Token Scopes: <code>channels:history</code>, <code>chat:write</code> → Install to Workspace.</li><li>In Slack, <code>/invite @YourApp</code> to the channel where meeting minutes are posted.</li></ol>
+    <label>Bot User OAuth Token</label><input id="slackToken" placeholder="xoxb-…" autocomplete="off">
+    <label>Channel ID</label><input id="slackChannel" placeholder="C0123456789 (channel details → About)">`,
+    `<button class="primary" onclick="slackSave(this)">Test &amp; connect</button>`);
+}
+async function slackSave(btn) {
+  const token = document.getElementById("slackToken").value.trim();
+  const channel = document.getElementById("slackChannel").value.trim();
+  if (!/^xox[bp]-/.test(token) || !channel) return toast("Enter a bot token (xoxb-…) and a channel ID.");
+  btn.disabled = true; btn.textContent = "Testing…";
+  try {
+    const res = await nativeFetch("/api/slack", { method: "POST", headers: { "Content-Type": "application/json", "x-slack-token": token, "x-slack-channel": channel }, body: JSON.stringify({ action: "test" }) });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || res.status);
+    localStorage.setItem(SLACK_KEY, JSON.stringify({ token, channel, team: j.team, channelName: "#" + j.channel }));
+    closeModal();
+    toast(`Connected to ${j.team} #${j.channel}${j.is_member === false ? ". Invite the bot to the channel so it can read minutes." : "."}`);
+    log("Connected Slack #" + j.channel);
+    loadSlackStatus();
+  } catch (e) {
+    toast("Slack connection failed: " + e.message);
+  } finally { btn.disabled = false; btn.textContent = "Test & connect"; }
+}
+function slackDisconnect() { localStorage.removeItem(SLACK_KEY); toast("Slack disconnected on this device."); loadSlackStatus(); }
+async function slackTestMessage(btn) {
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/slack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send", text: ":white_check_mark: TruthLink is connected. Autopilot will post task assignments and nudges here." }) });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || res.status);
+    toast("Test message sent to Slack.");
+  } catch (e) { toast("Slack send failed: " + e.message); } finally { btn.disabled = false; }
+}
+loadSlackStatus();

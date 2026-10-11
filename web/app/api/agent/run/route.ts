@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { extractTasks } from "@/lib/ai/extract";
 import { verifyEvidence } from "@/lib/ai/verify";
+import { slackCall, slackConn } from "@/lib/slack";
 
 // TruthLink Autopilot: one agent run.
 // 1. Watch Slack for new meeting minutes → draft tasks (drafts only; a team lead approves before anyone is assigned).
@@ -35,22 +36,6 @@ const Input = z.object({
     .max(300),
 });
 
-const slackOn = () => Boolean(process.env.SLACK_BOT_TOKEN && process.env.SLACK_CHANNEL_ID);
-async function slack(method: string, body: Record<string, unknown>) {
-  const res = await fetch(`https://slack.com/api/${method}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`, "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify(body),
-  });
-  const j = await res.json();
-  if (!j.ok) throw new Error(`Slack ${method}: ${j.error}`);
-  return j;
-}
-async function post(text: string) {
-  if (!slackOn()) return false;
-  await slack("chat.postMessage", { channel: process.env.SLACK_CHANNEL_ID, text });
-  return true;
-}
 const isMinutes = (t: string) => /minutes|recap|action items|meeting notes|design review/i.test(t);
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
 
@@ -58,6 +43,14 @@ export async function POST(req: Request) {
   const parsed = Input.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request", issues: parsed.error.issues }, { status: 400 });
   const input = parsed.data;
+  const conn = slackConn(req);
+  const slackOn = () => Boolean(conn);
+  const slack = (method: string, body: Record<string, unknown>) => slackCall(conn!, method, body);
+  const post = async (text: string) => {
+    if (!conn) return false;
+    await slack("chat.postMessage", { channel: conn.channel, text });
+    return true;
+  };
   const log: { at: string; kind: string; text: string; live: boolean }[] = [];
   const note = (kind: string, text: string, live: boolean) => log.push({ at: new Date().toISOString(), kind, text, live });
   let cursor = input.cursor;
@@ -68,7 +61,7 @@ export async function POST(req: Request) {
     let minutes: { text: string; live: boolean } | null = null;
     if (input.simulatedMinutes) minutes = { text: input.simulatedMinutes, live: false };
     else if (slackOn()) {
-      const h = await slack("conversations.history", { channel: process.env.SLACK_CHANNEL_ID, limit: 20, ...(cursor ? { oldest: cursor } : {}) });
+      const h = await slack("conversations.history", { channel: conn!.channel, limit: 20, ...(cursor ? { oldest: cursor } : {}) });
       const fresh = (h.messages ?? []).filter((m: { ts: string; text?: string; bot_id?: string; subtype?: string }) => m.text && !m.bot_id && !m.subtype && (!cursor || m.ts > cursor));
       if (h.messages?.length) cursor = h.messages.map((m: { ts: string }) => m.ts).sort().pop() ?? cursor;
       const m = fresh.reverse().find((x: { text: string }) => isMinutes(x.text));

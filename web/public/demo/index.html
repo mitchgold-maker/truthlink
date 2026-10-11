@@ -54,6 +54,9 @@
       <div id="steps"></div>
     </main>
     <script>
+      // Use the Slack connection saved on the Integrations page, if any.
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = (url, opts = {}) => { let sl = null; try { sl = JSON.parse(localStorage.getItem("truthlink-slack")); } catch {} if (sl && typeof url === "string" && url.startsWith("/api/slack")) opts = { ...opts, headers: { ...(opts.headers || {}), "x-slack-token": sl.token, "x-slack-channel": sl.channel } }; return nativeFetch(url, opts); };
       const $ = (s, el = document) => el.querySelector(s);
       const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
       const today = new Date().toISOString().slice(0, 10);
