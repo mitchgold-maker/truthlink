@@ -678,13 +678,13 @@ function teamPage() {
       "People behind the mission",
       "Members & capacity",
       "Match demonstrated experience with the availability to help.",
-      `<button data-ai-key="explain:t1" onclick="recommend('t1')">Try replacement demo →</button>`,
+      `<button class="primary" onclick="memberDialog()">+ Add member</button>`,
     ) +
     `<div class="team-grid">${state.people
       .map((p) => {
         let h = load(p.id),
           cap = p.pto ? 0 : p.capacity;
-        return `<section class="panel person"><div class="row"><span class="avatar">${initials(p.name)}</span><span class="tag ${p.pto || h > cap ? "amber" : "gray"}">${p.pto ? "Unavailable" : h > cap ? "Over capacity" : "Available"}</span></div><h2 style="margin:16px 0 6px">${p.name}</h2><p>${p.role}</p><div class="skills">${p.skills.map((s) => `<span class="tag gray">${s}</span>`).join("")}</div><div class="row" style="font-size:12px"><span>Committed / available this week</span><strong>${h} / ${cap}h</strong></div><div class="bar"><span style="width:${Math.min(100, cap ? (h / cap) * 100 : 100)}%;background:${h > cap ? "#bd9252" : "#769267"}"></span></div><p>${p.history} coordinator-approved tasks in demo history</p><div class="actions" style="margin-top:18px"><button class="small" onclick="togglePTO('${p.id}')">${p.pto ? "End time off" : "Simulate time off"}</button><button class="small" onclick="profile('${p.id}')">View history</button></div>${p.pto ? `<button class="small primary" style="margin-top:10px" onclick="recommendOwner('${p.id}')">Find coverage →</button>` : ""}</section>`;
+        return `<section class="panel person"><div class="row"><span class="avatar">${initials(p.name)}</span><span class="tag ${p.pto || h > cap ? "amber" : "gray"}">${p.pto ? "Unavailable" : h > cap ? "Over capacity" : "Available"}</span></div><h2 style="margin:16px 0 6px">${p.name}</h2><p>${p.role}</p><div class="skills">${p.skills.map((s) => `<span class="tag gray">${s}</span>`).join("")}</div><div class="row" style="font-size:12px"><span>Committed / available this week</span><strong>${h} / ${cap}h</strong></div><div class="bar"><span style="width:${Math.min(100, cap ? (h / cap) * 100 : 100)}%;background:${h > cap ? "#bd9252" : "#769267"}"></span></div><p>${p.history} coordinator-approved tasks in demo history</p><div class="actions" style="margin-top:18px"><button class="small" onclick="togglePTO('${p.id}')">${p.pto ? "End time off" : "Simulate time off"}</button><button class="small" onclick="profile('${p.id}')">View history</button><button class="small quiet" onclick="memberDialog('${p.id}')">Edit</button></div>${p.pto ? `<button class="small primary" style="margin-top:10px" onclick="recommendOwner('${p.id}')">Find coverage →</button>` : ""}</section>`;
       })
       .join(
         "",
@@ -2045,3 +2045,56 @@ async function slackTestMessage(btn) {
   } catch (e) { toast("Slack send failed: " + e.message); } finally { btn.disabled = false; }
 }
 loadSlackStatus();
+
+// ---------------------------------------------------------------------------
+// Add, edit and remove members. Members are workspace records (skills, weekly capacity,
+// Slack ID for mentions). Login accounts per member come with server-side auth.
+function memberDialog(id) {
+  const p = id ? person(id) : null;
+  show(`<h2>${p ? "Edit member" : "Add member"}</h2>
+    <label>Full name</label><input id="mName" value="${esc(p?.name || "")}" placeholder="Alex Morgan">
+    <label>Role</label><input id="mRole" value="${esc(p?.role || "")}" placeholder="Suspension lead">
+    <label>Email</label><input id="mEmail" type="email" value="${esc(p?.email || "")}" placeholder="name@team.org">
+    <label>Skills (comma separated)</label><input id="mSkills" value="${esc((p?.skills || []).join(", "))}" placeholder="Suspension design, CAD">
+    <label>Weekly availability (hours)</label><input id="mCap" type="number" min="0" max="80" step="1" value="${p?.capacity ?? 8}">
+    <label>Slack member ID (optional, for @mentions)</label><input id="mSlack" value="${esc(p?.slack_id || "")}" placeholder="U0123ABCD (Slack profile → ⋯ → Copy member ID)">
+    <p class="hint">Declared skills show as "claimed" until a team lead approves work that proves them.</p>`,
+    `${p ? `<button class="quiet" onclick="memberRemove('${p.id}')">Remove</button>` : ""}<button class="primary" onclick="memberSave(${p ? `'${p.id}'` : "null"})">${p ? "Save" : "Add member"}</button>`);
+}
+function memberSave(id) {
+  const name = document.getElementById("mName").value.trim();
+  if (!name) return toast("Add the member's name.");
+  const cap = Number(document.getElementById("mCap").value);
+  if (!Number.isFinite(cap) || cap < 0) return toast("Use a weekly availability of 0 or more hours.");
+  const fields = {
+    name,
+    role: document.getElementById("mRole").value.trim() || "Member",
+    email: document.getElementById("mEmail").value.trim(),
+    skills: document.getElementById("mSkills").value.split(",").map((x) => x.trim()).filter(Boolean),
+    capacity: cap,
+    slack_id: document.getElementById("mSlack").value.trim() || undefined,
+  };
+  if (id) {
+    Object.assign(person(id), fields);
+    log("Updated member " + name);
+  } else {
+    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "member";
+    let newId = base, n = 2;
+    while (person(newId)) newId = base + "-" + n++;
+    state.people.push({ id: newId, ...fields, pto: false, records: [], history: 0 });
+    log("Added member " + name);
+  }
+  closeModal();
+  render();
+  toast(id ? "Member updated." : name + " added to the workspace.");
+}
+function memberRemove(id) {
+  const p = person(id);
+  const open = state.tasks.filter((t) => t.owner === id && active(t)).length;
+  if (open) return toast(`${p.name} still owns ${open} open task(s). Reassign them first.`);
+  state.people = state.people.filter((x) => x.id !== id);
+  log("Removed member " + p.name);
+  closeModal();
+  render();
+  toast(p.name + " removed.");
+}
