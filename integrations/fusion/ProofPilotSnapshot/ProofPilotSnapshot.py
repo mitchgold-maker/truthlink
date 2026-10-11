@@ -82,6 +82,17 @@ def _snapshot(app, design):
     for p in design.userParameters:
         params.append({"name": p.name, "expression": p.expression, "value_display": um.formatInternalValue(p.value, p.unit or "", True), "comment": p.comment})
 
+    features = []
+    if design.designType == adsk.fusion.DesignTypes.ParametricDesignType:
+        tl = design.timeline
+        for i in range(min(tl.count, 120)):
+            try:
+                features.append(tl.item(i).entity.name)
+            except Exception:
+                pass
+    for sk in root.sketches:
+        features.append(sk.name)
+
     doc = app.activeDocument
     data_file = doc.dataFile if doc.isSaved else None
 
@@ -103,6 +114,7 @@ def _snapshot(app, design):
         "user_parameters": params,
         "bodies": bodies[:40],
         "components": components[:40],
+        "features": features[:120],
         "timeline_features": design.timeline.count if design.designType == adsk.fusion.DesignTypes.ParametricDesignType else None,
         "version_history": _versions(data_file),
     }
@@ -128,7 +140,7 @@ def run(context):
         if dlg.showSave() != adsk.core.DialogResults.DialogOK:
             return
         with open(dlg.filename, "w", encoding="utf-8") as f:
-            json.dump(snap, f, indent=1)
+            json.dump(snap, f, separators=(",", ":"))
 
         ui.messageBox(
             f"Saved {dlg.filename}\n\nMass {snap['mass_g']} g · {snap['body_count']} bodies · "

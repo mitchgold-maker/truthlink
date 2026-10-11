@@ -14,7 +14,32 @@ export const llmConfig = {
 };
 
 export function llmConfigured() {
-  return Boolean(process.env.LLM_API_KEY && llmConfig.baseURL && llmConfig.model);
+  return Boolean(process.env.LLM_API_KEY && llmConfig.baseURL && llmConfig.model && process.env.LLM_DISABLED !== "1");
+}
+
+// Spend guard so sponsor credits are never exceeded. Limits are per server instance;
+// move the counters to the database once it is connected for a global cap.
+const limits = {
+  maxOutputTokens: Number(process.env.LLM_MAX_OUTPUT_TOKENS ?? 1500),
+  maxInputChars: Number(process.env.LLM_MAX_INPUT_CHARS ?? 24000),
+  maxCallsPerHour: Number(process.env.LLM_MAX_CALLS_PER_HOUR ?? 120),
+  tokenBudget: Number(process.env.LLM_TOKEN_BUDGET ?? 2_000_000),
+};
+export const usage = { calls: 0, promptTokens: 0, completionTokens: 0, blocked: 0 };
+const recentCalls: number[] = [];
+
+function checkBudget() {
+  const now = Date.now();
+  while (recentCalls.length && now - recentCalls[0] > 3_600_000) recentCalls.shift();
+  if (recentCalls.length >= limits.maxCallsPerHour) {
+    usage.blocked++;
+    throw new Error("AI hourly call limit reached (spend guard)");
+  }
+  if (usage.promptTokens + usage.completionTokens >= limits.tokenBudget) {
+    usage.blocked++;
+    throw new Error("AI token budget reached (spend guard)");
+  }
+  recentCalls.push(now);
 }
 
 let client: OpenAI | null = null;
@@ -43,6 +68,7 @@ export async function callJson<T>(
   user: string,
 ): Promise<LlmResult<T>> {
   if (!llmConfigured()) throw new Error("LLM not configured (set LLM_BASE_URL, LLM_API_KEY, LLM_MODEL)");
+  if (system.length + user.length > limits.maxInputChars) throw new Error("AI input too large (spend guard)");
   const started = Date.now();
   const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: "system", content: system + "\n\nRespond with a single JSON object only. No prose, no code fences." },
@@ -56,12 +82,17 @@ export async function callJson<T>(
         content: `Your previous answer was invalid: ${lastError}. Return only the corrected JSON object.`,
       });
     }
+    checkBudget();
     const res = await getClient().chat.completions.create({
       model: llmConfig.model,
       messages,
       temperature: 0.2,
+      max_tokens: limits.maxOutputTokens,
       response_format: { type: "json_object" },
     });
+    usage.calls++;
+    usage.promptTokens += res.usage?.prompt_tokens ?? 0;
+    usage.completionTokens += res.usage?.completion_tokens ?? 0;
     const text = res.choices[0]?.message?.content ?? "";
     messages.push({ role: "assistant", content: text });
     try {
