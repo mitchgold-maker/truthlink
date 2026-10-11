@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { llmConfig, llmConfigured, usage } from "@/lib/ai/llm";
+import { mongoConfigured } from "@/lib/db/mongo";
 
 // Tells the UI which AI provider is live, so it can label results honestly, and shows spend-guard usage.
 export async function GET() {
@@ -8,5 +9,6 @@ export async function GET() {
     provider: llmConfigured() ? llmConfig.provider : null,
     model: llmConfigured() ? llmConfig.model : null,
     usage,
+    database: mongoConfigured() ? "mongodb" : null,
   });
 }
