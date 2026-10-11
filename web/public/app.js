@@ -1261,7 +1261,7 @@ function integrationsPage() {
       ["Bloomerang","Not connected","No donor or sponsor account is connected."],
       ["MongoDB Atlas",syncStatus.startsWith("Synced") ? "Connected" : "Not connected","Workspace state uses Atlas when available, with device storage as fallback. Demo role controls are not authentication."],
       ["AI",integrationHealth?.ai ? "Configured · " + integrationHealth.provider : "Not connected","AI calls use the server spend guard; unavailable calls fall back to clearly labelled local behavior."]
-    ].map(([name,label,description]) => `<section class="panel integration"><div class="row"><h2>${esc(name)}</h2><span class="tag gray">${esc(label)}</span></div><p>${esc(description)}</p></section>`).join("")}</div><section class="panel section-gap"><div class="panel-head"><h2>Demo workspace controls</h2></div><div class="panel-body"><p>Export current records or reset to the fictional racing-team scenario.</p><div class="actions"><button onclick="exportData()">Export JSON</button><button onclick="resetDialog()">Reset demo</button></div></div></section>`;
+    ].map(([name,label,description]) => `<section class="panel integration"><div class="row"><h2>${esc(name)}</h2><span class="tag gray">${esc(label)}</span></div><p>${esc(description)}</p></section>`).join("")}</div><section class="panel section-gap"><div class="panel-head"><h2>Demo workspace controls</h2></div><div class="panel-body"><p>Export current records or reset to the fictional racing-team scenario.</p><div class="actions"><button onclick="exportData()">Export JSON</button><button onclick="resetDialog()">Reset demo</button><button onclick="demoScript()">Demo script</button></div></div></section>`;
 }
 function exportData() {
   let blob = new Blob(
@@ -1288,18 +1288,31 @@ function exportData() {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   toast("Demo records exported.");
 }
+function demoScript() {
+  const steps = [
+    ["Meeting notes → tasks", "Paste a design-review recap. Review the AI draft's owner, due date, effort, skills, criteria and exact source quote. Leave unresolved owners unassigned; approve before assigning."],
+    ["Real Fusion integration", "Save the front upright in Autodesk Fusion with the add-in enabled. Show the on-device check: mass 551 g exceeds the 450 g target — NOT READY."],
+    ["Evidence check in the app", "Pull the latest Fusion snapshot. Show per-criterion Measured, AI and Needs team lead labels. Only the team lead can complete complex work."],
+    ["The fix", "Change body thickness from 14 to 11 mm and save. Pull and verify the new snapshot: PASS. Approve the deliverable and inspect Jordan's updated verified-skill record."],
+    ["Coverage", "Simulate exam-week unavailability. Compare qualified replacements by verified experience and free hours, review the AI explanation, then approve coverage."],
+    ["Team insights + decision log + handoff pack", "Show verified records and decision reasons. Generate a graduating member's successor brief so knowledge stays when people leave."]
+  ];
+  show('<h2>Demo script</h2><p>Six steps from VIDEO_BRIEF.md · Fictional Demo Racing Team · 90-second video.</p><ol>' + steps.map(([title,detail]) => '<li class="draft"><h3>'+esc(title)+'</h3><p>'+esc(detail)+'</p></li>').join('') + '</ol><p class="hint">Use actual connected services and recorded results on screen. Label fictional or simulated data.</p>');
+}
 function resetDialog() {
   show(
-    "<h2>Reset the demo workspace?</h2><p>This replaces changes in this browser with the original fictional records. Export first to keep your work.</p>",
+    "<h2>Reset the demo workspace?</h2><p>This restores the original fictional records on this device and in the shared demo-racing-team workspace when connected. Export first to keep your work.</p>",
     `<button class="primary" onclick="resetDemo()">Reset demo</button>`,
   );
 }
-function resetDemo() {
+async function resetDemo() {
   state = structuredClone(seed);
+  baselineTasks(); drafts = []; decisionsFilter = ""; handoffCurrent = null;
   save();
   closeModal();
   render();
-  toast("Starting scenario restored.");
+  await flushSharedState();
+  toast("Starting scenario restored, including decisions and weekly logistics. " + syncStatus);
 }
 
 function atRisk(t) {
