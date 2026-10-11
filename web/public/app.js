@@ -363,6 +363,7 @@ const names = {
   overview: "Overview",
   tasks: "Initiatives & tasks",
   team: "Members & capacity",
+  insights: "Team insights",
   meetings: "Meeting notes",
   followups: "Follow-ups",
   integrations: "Integrations",
@@ -371,6 +372,7 @@ const icons = {
   overview: "◫",
   tasks: "▤",
   team: "♧",
+  insights: "▥",
   meetings: "▧",
   followups: "↗",
   integrations: "⊞",
@@ -444,6 +446,7 @@ function render() {
       overview: overview,
       tasks: tasksPage,
       team: teamPage,
+      insights: insightsPage,
       meetings: meetingsPage,
       followups: followupsPage,
       integrations: integrationsPage,
@@ -545,6 +548,63 @@ function taskRows() {
 }
 function renderTaskRows() {
   document.getElementById("taskrows").innerHTML = taskRows();
+}
+function insightsPage() {
+  const approvedRecords = p => (p.records || []).filter(r => r.approved_at && !["exists", "binary"].includes(r.verification_type));
+  const records = state.people.flatMap(approvedRecords);
+  const approved = t => t.status === "completed" && t.type === "manager" && records.some(r => r.task_id === t.id || (!r.task_id && r.title === t.title));
+  const subsystems = [...new Set(state.tasks.map(t => t.project || "Unassigned"))].sort();
+  const skills = [...new Set(state.people.flatMap(p => [...(p.skills || []), ...approvedRecords(p).flatMap(r => r.skills || [])]))].sort();
+  const verdicts = { pass: 0, fail: 0, needs_review: 0 };
+  const missingItems = new Map();
+  let reviewed = 0;
+  for (const t of state.tasks) {
+    if (!t.aiReview || !(t.aiReview.verdict in verdicts)) continue;
+    verdicts[t.aiReview.verdict]++;
+    reviewed++;
+    const seen = new Set();
+    for (const item of t.aiReview.missing || []) {
+      const label = String(item).trim();
+      const key = label.toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      const entry = missingItems.get(key) || { label, count: 0 };
+      entry.count++;
+      missingItems.set(key, entry);
+    }
+  }
+  const missing = [...missingItems.values()].sort((a,b) => b.count - a.count || a.label.localeCompare(b.label));
+  return heading("Workspace evidence", "Team insights", "Every number on this page comes from verified records in this workspace.") +
+    '<p class="hint">Fictional seed records remain demo data. Completion requires a matching coordinator-approved record; capacity uses declared availability and estimated remaining effort, never measured working time.</p>' +
+    '<section class="panel"><div class="panel-head"><h2>Verified completion by subsystem</h2></div><div class="table-wrap"><table><thead><tr><th>Subsystem</th><th>Verified approved</th><th>Pending approval</th><th>Open</th><th>Other completed</th></tr></thead><tbody>' +
+    subsystems.map(name => {
+      const tasks = state.tasks.filter(t => (t.project || "Unassigned") === name);
+      const verified = tasks.filter(approved).length;
+      const pending = tasks.filter(t => t.status === "pending_approval").length;
+      const open = tasks.filter(t => t.status !== "completed" && t.status !== "pending_approval").length;
+      const other = tasks.filter(t => t.status === "completed" && !approved(t)).length;
+      const rate = tasks.length ? Math.round(verified / tasks.length * 100) : 0;
+      return `<tr><td>${esc(name)}<div class="bar"><span style="width:${rate}%"></span></div></td><td>${verified} / ${tasks.length} · ${rate}%</td><td>${pending}</td><td>${open}</td><td>${other}</td></tr>`;
+    }).join("") + '</tbody></table></div><div class="panel-body"><p class="hint">Other completed: file-presence checks or completed tasks without a matching approval record. They do not increase the verified approval rate.</p>' + (state.tasks.length ? '' : '<p>No tasks in this workspace.</p>') + '</div></section>' +
+    '<section class="panel section-gap"><div class="panel-head"><h2>Demonstrated-skill matrix</h2></div><div class="table-wrap"><table><thead><tr><th>Member</th>' + skills.map(skill => `<th>${esc(skill)}</th>`).join("") + '</tr></thead><tbody>' +
+    state.people.map(p => `<tr><td>${esc(p.name)}</td>${skills.map(skill => {
+      const count = approvedRecords(p).filter(r => (r.skills || []).includes(skill)).length;
+      return `<td><span class="tag ${count ? "" : "gray"}" title="${count ? "Coordinator-approved records" : (p.skills || []).includes(skill) ? "Declared skill; no approved evidence" : "No declared or demonstrated skill"}">${count || ((p.skills || []).includes(skill) ? "Declared · 0" : "—")}</span></td>`;
+    }).join("")}</tr>`).join("") + '</tbody></table></div><div class="panel-body"><p class="hint">Counts are approved records per skill. Grey declared skills have no approved evidence. Existence-only completions are excluded.</p>' + (!state.people.length ? '<p>No members in this workspace.</p>' : '') + '</div></section>' +
+    '<section class="panel section-gap"><div class="panel-head"><h2>Capacity risk</h2></div><div class="panel-body">' +
+    state.people.map(p => {
+      const tasks = state.tasks.filter(t => t.owner === p.id && active(t));
+      const assigned = tasks.reduce((sum,t) => sum + (Number(t.hours) || 0), 0);
+      const capacity = Number(p.capacity) || 0;
+      const available = p.pto ? 0 : capacity;
+      const risk = p.pto || assigned > available;
+      const width = available ? Math.min(100, assigned / available * 100) : assigned ? 100 : 0;
+      return `<div class="draft"><div class="row"><h3>${esc(p.name)}</h3><span class="tag ${risk ? "amber" : "gray"}">${p.pto ? "PTO · needs coverage" : risk ? "Over capacity" : "Within capacity"}</span></div><p>${assigned}h assigned / ${available}h available${p.pto ? ` · ${capacity}h declared capacity before PTO` : ""}</p><div class="bar"><span style="width:${width}%;background:${risk ? "#bd9252" : "#769267"}"></span></div>${p.pto ? tasks.map(t => `<p><span class="tag amber">Needs coverage</span> ${esc(t.title)}</p>`).join("") || '<p>No active tasks need coverage.</p>' : ""}</div>`;
+    }).join("") + (!state.people.length ? '<p>No capacity records.</p>' : '') + '</div></section>' +
+    '<section class="panel section-gap"><div class="panel-head"><h2>Evidence quality</h2></div><div class="panel-body"><div class="stats">' +
+    Object.entries(verdicts).map(([verdict,count]) => `<div class="stat"><span>${esc(verdict)}</span><strong>${count}</strong></div>`).join("") +
+    `</div><p>${reviewed} tasks with a last AI review · ${state.tasks.length - reviewed} without a recorded AI verdict. AI pass is not coordinator approval.</p><h3>Most common missing items</h3>` +
+    (missing.length ? missing.slice(0,5).map(item => `<p>${esc(item.label)} <span class="tag gray">${item.count} ${item.count === 1 ? "task" : "tasks"}</span></p>`).join("") : '<p>No missing items recorded in AI reviews.</p>') + '</div></section>';
 }
 function teamPage() {
   return (
