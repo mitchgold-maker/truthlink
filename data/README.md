@@ -1,6 +1,6 @@
 # Dataset contract
 
-Test data is imported by a seed script during the build. Put files in `data/seed/` using these names and shapes so they import without changes. Use fictional people only; no real personal data. Model the data on a student engineering club (members with 3–10 h/week, exam weeks as PTO, competition deliverables), using what clubs tell us during validation.
+Test data is imported by a seed script during the build. Put files in `data/seed/` using these names and shapes so they import without changes. Use fictional people only; no real personal data. For the demo, model a fictional aerospace engineering program (full-time engineers, about 40 h/week, real-looking deliverables: CAD, stress analysis, test reports, reviews), shaped by what our club pilot groups tell us. Do not use real company names, programs or people. A second small club dataset is optional for showing the pilot.
 
 ## Files
 

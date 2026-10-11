@@ -6,12 +6,15 @@ Managers lose hours chasing status, checking whether "done" really means done, a
 ## Product
 ProofPilot turns meetings into accountable tasks, verifies deliverables with evidence, builds a record of what each person has actually delivered, and uses that record to keep projects on schedule.
 
-## Users
-First market: **student engineering clubs and design teams** (non-profit student organisations). Same model later for engineering firms.
-- **Manager** (club president, project lead, team captain): creates projects, approves AI-drafted tasks, approves complex deliverables, approves reassignments, sees risk.
-- **Employee** (club member): sees their tasks, submits evidence, sees follow-ups.
+## Customers and pilots
+- **Target customers:** large engineering organizations, such as aerospace and defense companies like Lockheed Martin and Boeing (no affiliation; this is the market we are building for). Many concurrent programs, deliverables that must be verifiable, specialised skills, and high cost when a key engineer is out.
+- **Pilot groups:** student engineering clubs and design teams. They run real engineering projects with the same problems at small scale, so we test every feature with them and change the product from their feedback (logged in ).
 
-Club-specific realities the MVP must handle: members have small, changing weekly hours; unavailability comes from exams and breaks (stored as PTO); leadership turns over every year, so verified history of who can do what is especially valuable; deliverables are CAD, reports, code and builds for competitions.
+## Users
+- **Manager** (program or project manager; in pilots, the club or project lead): creates projects, approves AI-drafted tasks, approves complex deliverables, approves reassignments, sees risk.
+- **Employee** (engineer; in pilots, a club member): sees their tasks, submits evidence, sees follow-ups.
+
+The MVP must work for both: full-time engineers (about 40 h/week) and club members (a few hours a week, exams and breaks as PTO). Verified history of who can do what matters in both: turnover in clubs, specialised skills and staffing gaps in companies.
 
 ## MVP scope (must work for the demo)
 

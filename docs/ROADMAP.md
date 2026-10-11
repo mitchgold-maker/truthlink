@@ -5,5 +5,6 @@
 - **Deeper evidence checks:** parse CAD metadata, run document structure checks, diff code against acceptance criteria.
 - **Scheduled follow-ups and risk alerts** (cron instead of a button).
 - **Calendar sync** for PTO and availability.
-- **Multi-team orgs, SSO, audit export.**
+- **Enterprise readiness for aerospace and defense:** SSO (SAML/OIDC), role hierarchies across programs, immutable audit log and export, data residency and government-cloud hosting, export-control handling (ITAR/EAR) and CUI-aware access rules, SOC 2.
+- **Engineering system integrations:** PLM (Siemens Teamcenter, PTC Windchill), requirements tools, Jira/Azure DevOps.
 - **Skill confidence over time** from verified history, with decay for skills not used recently.
