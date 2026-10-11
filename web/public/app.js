@@ -349,12 +349,15 @@ const seed = {
     },
   ],
 };
+seed.tasks.forEach(t => t.updated_at = "2026-10-10T09:00:00");
 let state;
 try {
   state = JSON.parse(localStorage.getItem(KEY)) || structuredClone(seed);
 } catch {
   state = structuredClone(seed);
 }
+state.tasks.forEach(t => t.updated_at ||= "2026-10-10T09:00:00");
+const taskChanges = new Map(state.tasks.map(t => [t.id, JSON.stringify([t.status,t.owner,t.evidence,t.evidenceDocs])]));
 let page = "overview",
   query = "",
   statusFilter = "all",
@@ -407,6 +410,11 @@ const status = (t) =>
 const badge = (t) =>
   `<span class="tag ${t.status === "pending_approval" ? "amber" : t.status === "blocked" ? "red" : t.status === "completed" ? "" : "gray"}">${status(t)}</span>`;
 function save() {
+  for (const t of state.tasks) {
+    const signature = JSON.stringify([t.status,t.owner,t.evidence,t.evidenceDocs]);
+    if (taskChanges.get(t.id) !== signature) t.updated_at = new Date().toISOString();
+    taskChanges.set(t.id, signature);
+  }
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
   } catch {
@@ -718,7 +726,7 @@ function closeModal() {
 function review(id) {
   const t = state.tasks.find((t) => t.id === id);
   show(
-    `<div class="eyebrow">${esc(t.project)} · ${t.type === "exists" ? "File presence check" : "Coordinator approval required"}</div><h2 style="margin-top:10px">${esc(t.title)}</h2><div class="row"><p>${esc(person(t.owner)?.name)} · Due ${esc(t.due)}</p>${badge(t)}</div>${active(t) ? `<label>Progress update</label><select aria-label="Update progress" onchange="setProgress('${t.id}',this.value)"><option value="">Choose an update…</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select>` : ""}<label>Acceptance criteria</label><div class="evidence">${esc(t.criteria)}</div>${t.aiReview ? `<label>AI review</label><div class="evidence"><span class="tag ${t.aiReview.verdict === "pass" ? "" : "amber"}">${esc(t.aiReview.verdict)}</span><p>${esc(t.aiReview.summary)}</p>${t.aiReview.checks.map((c) => `<p><strong>${esc(c.met)} · ${esc(c.criterion)}</strong><br>${esc(c.reason)}</p>`).join("")}${t.aiReview.missing.length ? `<p>Missing: ${esc(t.aiReview.missing.join("; "))}</p>` : ""}<p class="hint">AI · ${esc(t.aiReview.provider)} · ${esc(t.aiReview.model)} · ${esc(t.aiReview.at)}</p></div>` : ""}<label>Submitted evidence</label><div class="evidence">${t.evidence.length ? t.evidence.map((e) => "▧ " + esc(e)).join("<br>") : "No evidence submitted."}</div>${t.status !== "completed" ? `<input type="file" id="evidenceFile" multiple aria-label="Upload task evidence"><p class="hint">Text-like files are stored in this browser (up to 15,000 characters) and sent to the AI when you run a review. Other file contents cannot be read; their filenames alone do not prove quality.</p><button style="margin-top:12px" onclick="attach('${id}')">Add evidence</button><label>Review result</label><div class="evidence">${esc(t.checkSource || "Not reviewed")}<br>${t.checked ? "Evidence checklist reviewed. Quality and suitability remain a coordinator decision." : "Evidence has not passed the demo checklist. File activity alone cannot prove completion."}</div>` : '<div class="evidence">Completed and recorded in the task history.</div>'}`,
+    `<div class="eyebrow">${esc(t.project)} · ${t.type === "exists" ? "File presence check" : "Coordinator approval required"}</div><h2 style="margin-top:10px">${esc(t.title)}</h2><div class="row"><p>${esc(person(t.owner)?.name)} · Due ${esc(t.due)}</p>${badge(t)}</div>${active(t) ? `<label>Progress update</label><select aria-label="Update progress" onchange="setProgress('${t.id}',this.value)"><option value="">Choose an update…</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select>` : ""}<label>Acceptance criteria</label><div class="evidence">${esc(t.criteria)}</div>${t.aiReview ? `<label>AI review</label><div class="evidence"><span class="tag ${t.aiReview.verdict === "pass" ? "" : "amber"}">${esc(t.aiReview.verdict)}</span><p>${t.aiReview.checks.filter(c => c.method === "measured").length} of ${t.aiReview.checks.length} criteria measured from Fusion · ${t.aiReview.checks.filter(c => c.method === "ai").length} AI checks · ${t.aiReview.checks.filter(c => c.method === "human").length} need team lead</p><p>${esc(t.aiReview.summary)}</p>${t.aiReview.checks.map((c) => `<p><span class="tag" style="background:${c.method === "measured" ? "#e3efdf" : c.method === "ai" ? "#e1edff" : "#eee"};color:${c.method === "measured" ? "#385b2c" : c.method === "ai" ? "#234e89" : "#555"}">${c.method === "measured" ? "Measured" : c.method === "ai" ? "AI" : "Needs team lead"}</span> <strong>${esc(c.met)} · ${esc(c.criterion)}</strong><br>${esc(c.reason)}</p>`).join("")}${t.aiReview.missing.length ? `<p>Missing: ${esc(t.aiReview.missing.join("; "))}</p>` : ""}<p class="hint">AI · ${esc(t.aiReview.provider)} · ${esc(t.aiReview.model)} · ${esc(t.aiReview.at)}</p></div>` : ""}<label>Submitted evidence</label><div class="evidence">${t.evidence.length ? t.evidence.map((e) => "▧ " + esc(e)).join("<br>") : "No evidence submitted."}</div>${t.status !== "completed" ? `<input type="file" id="evidenceFile" multiple aria-label="Upload task evidence"><p class="hint">Text-like files are stored in this browser (up to 15,000 characters) and sent to the AI when you run a review. Other file contents cannot be read; their filenames alone do not prove quality.</p><p class="hint">Tip: upload a Fusion snapshot (*.proofpilot.json) to verify mass, versions and components.</p><button style="margin-top:12px" onclick="attach('${id}')">Add evidence</button><label>Review result</label><div class="evidence">${esc(t.checkSource || "Not reviewed")}<br>${t.checked ? "Evidence checklist reviewed. Quality and suitability remain a coordinator decision." : "Evidence has not passed the demo checklist. File activity alone cannot prove completion."}</div>` : '<div class="evidence">Completed and recorded in the task history.</div>'}`,
     t.status === "completed"
       ? ""
       : `<button onclick="checkEvidence('${id}')">Review evidence</button>${t.type === "manager" && t.checked ? `<button class="primary" onclick="approve('${id}')">Coordinator: approve</button>` : ""}`,
@@ -772,6 +780,7 @@ async function checkEvidence(id) {
     render();
     return toast("File presence verified. No content-quality claim made.");
   }
+  const since = t.updated_at;
   t.verifying = true;
   t.checked = false;
   if (t.status === "pending_approval") t.status = "in_progress";
@@ -792,6 +801,7 @@ async function checkEvidence(id) {
         title: t.title,
         criteria: t.criteria,
         verification_type: "complex",
+        since,
         evidence: t.evidence.map(
           (name) =>
             (t.evidenceDocs || []).find((d) => d.name === name) || {
@@ -819,6 +829,8 @@ async function checkEvidence(id) {
     t.aiReview = {
       verdict: json.verdict,
       checks: json.checks,
+      ruleChecks: json.ruleChecks,
+      aiChecks: json.aiChecks,
       summary: json.summary,
       missing: json.missing,
       model: json.model,
@@ -826,7 +838,7 @@ async function checkEvidence(id) {
       at: new Date().toISOString(),
     };
     t.checkSource = "AI reviewed";
-    t.checked = json.verdict === "pass";
+    t.checked = json.checks.length > 0 && !json.checks.some(c => c.met === "no");
     if (t.checked) t.status = "pending_approval";
     else if (t.status === "pending_approval") t.status = "in_progress";
     log(
