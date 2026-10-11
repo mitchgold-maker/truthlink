@@ -453,6 +453,7 @@ function toast(s) {
 }
 function go(p) {
   page = p;
+  if (p === "insights") loadPerformance();
   query = "";
   statusFilter = "all";
   render();
@@ -632,7 +633,7 @@ function insightsPage() {
     '<section class="panel section-gap"><div class="panel-head"><h2>Evidence quality</h2></div><div class="panel-body"><div class="stats">' +
     Object.entries(verdicts).map(([verdict,count]) => `<div class="stat"><span>${esc(verdict)}</span><strong>${count}</strong></div>`).join("") +
     `</div><p>${reviewed} tasks with a last AI review · ${state.tasks.length - reviewed} without a recorded AI verdict. AI pass is not coordinator approval.</p><h3>Most common missing items</h3>` +
-    (missing.length ? missing.slice(0,5).map(item => `<p>${esc(item.label)} <span class="tag gray">${item.count} ${item.count === 1 ? "task" : "tasks"}</span></p>`).join("") : '<p>No missing items recorded in AI reviews.</p>') + '</div></section>' + ownershipMap();
+    (missing.length ? missing.slice(0,5).map(item => `<p>${esc(item.label)} <span class="tag gray">${item.count} ${item.count === 1 ? "task" : "tasks"}</span></p>`).join("") : '<p>No missing items recorded in AI reviews.</p>') + '</div></section>' + ownershipMap() + performanceSection();
 }
 function teamPage() {
   return (
@@ -695,11 +696,11 @@ async function recommend(id) {
       (a, b) =>
         (b.free >= t.hours) - (a.free >= t.hours) ||
         experience(b.p, t) - experience(a.p, t) ||
-        b.free - a.free,
+        b.free - a.free || performanceTie(a.p.id,b.p.id,t.skills),
     );
   const request = { task: { title: t.title, skills: t.skills, hours: t.hours, criteria: t.criteria }, candidates: candidates.slice(0, 3).map(({p,h,free}) => ({ id: p.id, name: p.name, skills: p.skills, demonstrated_experience: experience(p,t), free_hours: free, assigned_hours: h })) };
   show(
-    `<div class="eyebrow">Replacement recommendations · Rule-based demo</div><h2 style="margin-top:10px">Cover ${esc(t.title)}</h2><p>${esc(person(t.owner)?.name)} is assigned ${t.hours} hours. All required skills must match.</p>${candidates.map(({ p, h, free }, index) => `<div class="draft"><div class="row"><h3>${p.name}</h3><span class="tag ${free < t.hours ? "amber" : ""}">${free < t.hours ? "Insufficient capacity" : "Qualified & available"}</span></div><p>${p.skills.join(" · ")}<br>${experience(p, t)} approved tasks with matching skills · ${Math.max(0, free)}h available · ${h}h already assigned</p><div data-explanation="${index}"><p class="hint">Rule-based${index < 3 ? " · AI explanation pending…" : ""}</p></div><button class="small ${free >= t.hours ? "primary" : ""}" ${free < t.hours ? "disabled" : ""} onclick="reassign('${t.id}','${p.id}')" style="margin-top:12px">Approve reassignment</button></div>`).join("") || '<div class="empty">No eligible replacements. Adjust scope or availability.</div>'}<p class="hint">Recommendations compare declared skills, time off, matching approved task history, and estimated capacity. A coordinator makes the assignment.</p>`,
+    `<div class="eyebrow">Replacement recommendations · Rule-based demo</div><h2 style="margin-top:10px">Cover ${esc(t.title)}</h2><p>${esc(person(t.owner)?.name)} is assigned ${t.hours} hours. All required skills must match.</p>${candidates.map(({ p, h, free }, index) => `<div class="draft"><div class="row"><h3>${p.name}</h3><span class="tag ${free < t.hours ? "amber" : ""}">${free < t.hours ? "Insufficient capacity" : "Qualified & available"}</span></div><p>${p.skills.join(" · ")}<br>${experience(p, t)} approved tasks with matching skills · ${Math.max(0, free)}h available · ${h}h already assigned</p><div data-explanation="${index}"><p class="hint">Rule-based${index < 3 ? " · AI explanation pending…" : ""}</p></div><button class="small ${free >= t.hours ? "primary" : ""}" ${free < t.hours ? "disabled" : ""} onclick="reassign('${t.id}','${p.id}')" style="margin-top:12px">Approve reassignment</button></div>`).join("") || '<div class="empty">No eligible replacements. Adjust scope or availability.</div>'}<p class="hint">Recommendations compare declared skills, time off, matching approved task history, and estimated capacity. First-pass rate in the required skills breaks otherwise equal rankings when event history exists. A coordinator makes the assignment.</p>`,
   );
   if (!request.candidates.length) return;
   const modal = document.getElementById("modal");
@@ -1580,6 +1581,36 @@ async function flushEvents() {
   catch { /* Offline telemetry is deliberately dropped; workspace actions remain usable. */ }
   if (eventQueue.length) eventTimer = setTimeout(flushEvents,200);
 }
+let performanceData = null, performanceLoading = false;
+async function loadPerformance() {
+  if (performanceLoading) return;
+  performanceLoading = true;
+  try {
+    const data = await apiJson("/api/metrics?workspace=demo-racing-team");
+    if (!Array.isArray(data.members) || !Array.isArray(data.tasks)) throw new Error("Invalid metrics response");
+    performanceData = data;
+  } catch (e) { performanceData = null; toast("Performance history unavailable: " + e.message + ". Showing workspace records only."); }
+  finally { performanceLoading = false; if (page === "insights") render(); }
+}
+function firstPassScore(member, skills) {
+  if (!performanceData || !skills.length) return null;
+  const rows = skills.map(skill => performanceData.members.find(r => r.member_id === member && r.skill === skill && r.completed > 0));
+  if (rows.some(r => !r || !Number.isFinite(r.first_pass_rate))) return null;
+  return rows.reduce((sum,r) => sum + r.first_pass_rate,0) / rows.length;
+}
+function performanceTie(a,b,skills) {
+  const left = firstPassScore(a,skills), right = firstPassScore(b,skills);
+  return left === null || right === null ? 0 : right - left;
+}
+function performanceSection() {
+  if (!performanceData) return '<section class="panel section-gap"><div class="panel-head"><h2>Performance history</h2></div><div class="panel-body"><p>Connect the database to see performance history</p></div></section>';
+  const number = value => Number.isFinite(value) ? value.toFixed(1) : "—";
+  const rows = performanceData.members;
+  const stuck = performanceData.tasks.filter(t => t.stage !== "approved").slice().sort((a,b) => b.days_in_stage-a.days_in_stage);
+  return '<section class="panel section-gap"><div class="panel-head"><h2>Performance history</h2></div><div class="table-wrap"><table><thead><tr><th>Member</th><th>Skill</th><th>Completed</th><th>First-pass rate</th><th>Average rework</th><th>Median cycle days</th><th>Estimate / self-reported hours</th></tr></thead><tbody>' + rows.map(r => `<tr><td>${esc(person(r.member_id)?.name || r.member_id)}</td><td>${esc(r.skill)}</td><td>${esc(r.completed)}</td><td>${Number.isFinite(r.first_pass_rate) ? (r.first_pass_rate*100).toFixed(1)+"%" : "—"}</td><td>${number(r.avg_rework_cycles)}</td><td>${number(r.median_cycle_days)}</td><td>${Number.isFinite(r.estimate_accuracy) ? number(r.estimate_accuracy)+"× · self-reported" : "Not self-reported"}</td></tr>`).join("") + '</tbody></table></div><div class="panel-body">' + (!rows.length ? '<p>No approved task events recorded yet.</p>' : '') + '<h3>Stuck work</h3>' + (stuck.map(t => `<p><strong>${esc(t.title || state.tasks.find(task => task.id === t.task_id)?.title || t.task_id)}</strong> · ${esc(t.stage)} · ${number(t.days_in_stage)} days · ${esc(t.rework_cycles)} rework cycles</p>`).join("") || '<p>No open event history.</p>') + '<p class="hint">Calendar time between recorded events. Hours only when members report them.</p></div></section>';
+}
 render();
 
 loadSharedState();
+
+loadPerformance();
