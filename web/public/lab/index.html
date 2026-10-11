@@ -51,7 +51,7 @@
     <script>
       const pct = (x) => (x == null ? "—" : (x * 100).toFixed(1) + "%");
       const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-      fetch("results.json", { cache: "no-store" })
+      fetch("/lab/results.json", { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : Promise.reject()))
         .then((d) => {
           const b = d.test.baseline, w = d.test.improved;
@@ -69,7 +69,7 @@
             <div class="panel"><h2>Fresh held-out test</h2>
               <div class="row"><span>Baseline (production)</span><div class="bar base"><i style="width:${b.accuracy * 100}%"></i></div><b>${pct(b.accuracy)}</b></div>
               <div class="row"><span>Improved (${esc(d.winner.agent)})</span><div class="bar"><i style="width:${w.accuracy * 100}%"></i></div><b>${pct(w.accuracy)}</b></div>
-              <p class="sub" style="margin:10px 0 0">The test set uses different units and phrasing (GPa, kg, "FoS") and was never used during optimisation.</p>
+              <p class="sub" style="margin:10px 0 0">The test set uses different units and phrasing (ksi, kg, "FoS") and was never used during optimisation.</p>
             </div>
             <div class="panel"><h2>Best dev accuracy by round</h2>
               ${bestByRound.map((a, i) => `<div class="row"><span>${i === 0 ? "Baseline" : "Round " + i}</span><div class="bar"><i style="width:${a * 100}%"></i></div><b>${pct(a)}</b></div>`).join("")}
