@@ -1,4 +1,4 @@
-const KEY = "proofpilot-racing-demo-v1";
+const KEY = "truthlink-racing-demo-v1";
 const seed = {
   people: [
     {
@@ -349,6 +349,11 @@ const seed = {
     },
   ],
 };
+seed.decisions = [
+  {id:"seed-d1",at:"2026-10-07T10:00:00",by:"alex",kind:"spec_change",task_id:"t1",summary:"Switched upright from 6061 to 7075 for stiffness",why:"Explore stiffness improvement",superseded_by:"seed-d2",source:"fictional_seed"},
+  {id:"seed-d2",at:"2026-10-08T10:00:00",by:"alex",kind:"spec_change",task_id:"t1",summary:"Back to 6061: 7075 stock lead time",why:"7075 stock would delay the build",superseded_by:null,source:"fictional_seed"},
+  {id:"seed-d3",at:"2026-10-09T10:00:00",by:"taylor",kind:"approval",task_id:"t9",summary:"Released pedal box CAD",why:"Team lead reviewed the model for release",superseded_by:null,source:"fictional_seed"}
+];
 seed.tasks.forEach(t => t.updated_at = "2026-10-10T09:00:00");
 let state;
 try {
@@ -356,6 +361,7 @@ try {
 } catch {
   state = structuredClone(seed);
 }
+state.decisions ||= structuredClone(seed.decisions);
 state.tasks.forEach(t => t.updated_at ||= "2026-10-10T09:00:00");
 const taskChanges = new Map(state.tasks.map(t => [t.id, JSON.stringify([t.status,t.owner,t.evidence,t.evidenceDocs])]));
 let page = "overview",
@@ -366,6 +372,7 @@ const names = {
   overview: "Overview",
   tasks: "Initiatives & tasks",
   team: "Members & capacity",
+  decisions: "Decisions",
   insights: "Team insights",
   meetings: "Meeting notes",
   followups: "Follow-ups",
@@ -375,6 +382,7 @@ const icons = {
   overview: "◫",
   tasks: "▤",
   team: "♧",
+  decisions: "≋",
   insights: "▥",
   meetings: "▧",
   followups: "↗",
@@ -454,6 +462,7 @@ function render() {
       overview: overview,
       tasks: tasksPage,
       team: teamPage,
+      decisions: decisionsPage,
       insights: insightsPage,
       meetings: meetingsPage,
       followups: followupsPage,
@@ -698,7 +707,7 @@ async function recommend(id) {
     slots.forEach(slot => { if (modal.open && modal.contains(slot)) slot.innerHTML = '<p class="hint">Rule-based · AI explanation unavailable or workspace changed.</p>'; });
   }
 }
-function reassign(tid, pid) {
+function reassign(tid, pid, confirmed = false) {
   let t = state.tasks.find((t) => t.id === tid),
     p = person(pid);
   if (
@@ -709,6 +718,10 @@ function reassign(tid, pid) {
     return toast(
       "Replacement no longer meets skills or capacity requirements.",
     );
+  if (!confirmed) return show(`<h2>Approve reassignment</h2><p>${esc(t.title)} → ${esc(p.name)}</p><label>Why</label><input id="decisionWhy" maxlength="280"><p class="hint">Recorded by Taylor, demo team lead.</p>`, `<button class="primary" onclick="reassign('${tid}','${pid}',true)">Approve reassignment</button>`);
+  const why = decisionReason();
+  if (!why) return;
+  recordDecision(t,"reassignment", t.title + ": " + (person(t.owner)?.name || t.owner) + " → " + p.name, why);
   t.owner = pid;
   log(`Coordinator reassigned ${t.title} to ${p.name}`);
   closeModal();
@@ -726,10 +739,10 @@ function closeModal() {
 function review(id) {
   const t = state.tasks.find((t) => t.id === id);
   show(
-    `<div class="eyebrow">${esc(t.project)} · ${t.type === "exists" ? "File presence check" : "Coordinator approval required"}</div><h2 style="margin-top:10px">${esc(t.title)}</h2><div class="row"><p>${esc(person(t.owner)?.name)} · Due ${esc(t.due)}</p>${badge(t)}</div>${active(t) ? `<label>Progress update</label><select aria-label="Update progress" onchange="setProgress('${t.id}',this.value)"><option value="">Choose an update…</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select>` : ""}<label>Acceptance criteria</label><div class="evidence">${esc(t.criteria)}</div>${t.aiReview ? `<label>AI review</label><div class="evidence"><span class="tag ${t.aiReview.verdict === "pass" ? "" : "amber"}">${esc(t.aiReview.verdict)}</span><p>${t.aiReview.checks.filter(c => c.method === "measured").length} of ${t.aiReview.checks.length} criteria measured from Fusion · ${t.aiReview.checks.filter(c => c.method === "ai").length} AI checks · ${t.aiReview.checks.filter(c => c.method === "human").length} need team lead</p><p>${esc(t.aiReview.summary)}</p>${t.aiReview.checks.map((c) => `<p><span class="tag" style="background:${c.method === "measured" ? "#e3efdf" : c.method === "ai" ? "#e1edff" : "#eee"};color:${c.method === "measured" ? "#385b2c" : c.method === "ai" ? "#234e89" : "#555"}">${c.method === "measured" ? "Measured" : c.method === "ai" ? "AI" : "Needs team lead"}</span> <strong>${esc(c.met)} · ${esc(c.criterion)}</strong><br>${esc(c.reason)}</p>`).join("")}${t.aiReview.missing.length ? `<p>Missing: ${esc(t.aiReview.missing.join("; "))}</p>` : ""}<p class="hint">AI · ${esc(t.aiReview.provider)} · ${esc(t.aiReview.model)} · ${esc(t.aiReview.at)}</p></div>` : ""}<label>Submitted evidence</label><div class="evidence">${t.evidence.length ? t.evidence.map((e) => "▧ " + esc(e)).join("<br>") : "No evidence submitted."}</div>${t.status !== "completed" ? `<input type="file" id="evidenceFile" multiple aria-label="Upload task evidence"><p class="hint">Text-like files are stored in this browser (up to 15,000 characters) and sent to the AI when you run a review. Other file contents cannot be read; their filenames alone do not prove quality.</p><p class="hint">Tip: upload a Fusion snapshot (*.proofpilot.json) to verify mass, versions and components.</p><button style="margin-top:12px" onclick="attach('${id}')">Add evidence</button><label>Review result</label><div class="evidence">${esc(t.checkSource || "Not reviewed")}<br>${t.checked ? "Evidence checklist reviewed. Quality and suitability remain a coordinator decision." : "Evidence has not passed the demo checklist. File activity alone cannot prove completion."}</div>` : '<div class="evidence">Completed and recorded in the task history.</div>'}`,
+    `<div class="eyebrow">${esc(t.project)} · ${t.type === "exists" ? "File presence check" : "Coordinator approval required"}</div><h2 style="margin-top:10px">${esc(t.title)}</h2><div class="row"><p>${esc(person(t.owner)?.name)} · Due ${esc(t.due)}</p>${badge(t)}</div>${active(t) ? `<label>Progress update</label><select aria-label="Update progress" onchange="setProgress('${t.id}',this.value)"><option value="">Choose an update…</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select>` : ""}<label>Acceptance criteria</label><div class="evidence">${esc(t.criteria)}</div><button class="small" onclick="specChange('${id}')">Record spec change</button>${active(t) && t.type === "manager" ? '<label>Decision reason (required for approval or changes)</label><input id="decisionWhy" maxlength="280" placeholder="Why is this decision right?"><p class="hint">Recorded by Taylor, demo team lead.</p>' : ""}${t.aiReview ? `<label>AI review</label><div class="evidence"><span class="tag ${t.aiReview.verdict === "pass" ? "" : "amber"}">${esc(t.aiReview.verdict)}</span><p>${t.aiReview.checks.filter(c => c.method === "measured").length} of ${t.aiReview.checks.length} criteria measured from Fusion · ${t.aiReview.checks.filter(c => c.method === "ai").length} AI checks · ${t.aiReview.checks.filter(c => c.method === "human").length} need team lead</p><p>${esc(t.aiReview.summary)}</p>${t.aiReview.checks.map((c) => `<p><span class="tag" style="background:${c.method === "measured" ? "#e3efdf" : c.method === "ai" ? "#e1edff" : "#eee"};color:${c.method === "measured" ? "#385b2c" : c.method === "ai" ? "#234e89" : "#555"}">${c.method === "measured" ? "Measured" : c.method === "ai" ? "AI" : "Needs team lead"}</span> <strong>${esc(c.met)} · ${esc(c.criterion)}</strong><br>${esc(c.reason)}</p>`).join("")}${t.aiReview.missing.length ? `<p>Missing: ${esc(t.aiReview.missing.join("; "))}</p>` : ""}<p class="hint">AI · ${esc(t.aiReview.provider)} · ${esc(t.aiReview.model)} · ${esc(t.aiReview.at)}</p></div>` : ""}<label>Submitted evidence</label><div class="evidence">${t.evidence.length ? t.evidence.map((e) => "▧ " + esc(e)).join("<br>") : "No evidence submitted."}</div>${t.status !== "completed" ? `<input type="file" id="evidenceFile" multiple aria-label="Upload task evidence"><p class="hint">Text-like files are stored in this browser (up to 15,000 characters) and sent to the AI when you run a review. Other file contents cannot be read; their filenames alone do not prove quality.</p><p class="hint">Tip: upload a Fusion snapshot (*.truthlink.json) to verify mass, versions and components.</p><button style="margin-top:12px" onclick="attach('${id}')">Add evidence</button><label>Review result</label><div class="evidence">${esc(t.checkSource || "Not reviewed")}<br>${t.checked ? "Evidence checklist reviewed. Quality and suitability remain a coordinator decision." : "Evidence has not passed the demo checklist. File activity alone cannot prove completion."}</div>` : '<div class="evidence">Completed and recorded in the task history.</div>'}`,
     t.status === "completed"
       ? ""
-      : `<button onclick="checkEvidence('${id}')">Review evidence</button>${t.type === "manager" && t.checked ? `<button class="primary" onclick="approve('${id}')">Coordinator: approve</button>` : ""}`,
+      : `<button onclick="checkEvidence('${id}')">Review evidence</button>${t.type === "manager" && t.checked ? `<button class="primary" onclick="approve('${id}')">Coordinator: approve</button>` : ""}${t.type === "manager" ? `<button onclick="reject('${id}')">Request changes</button>` : ""}`,
   );
 }
 async function attach(id) {
@@ -894,6 +907,9 @@ function approve(id) {
   let t = state.tasks.find((t) => t.id === id);
   if (t.type !== "manager" || !t.checked || t.status !== "pending_approval")
     return toast("Evidence checklist must pass before coordinator approval.");
+  const why = decisionReason();
+  if (!why) return;
+  recordDecision(t,"approval","Approved " + t.title,why);
   t.status = "completed";
   recordCompletion(t);
   log(
@@ -1167,7 +1183,7 @@ function message(t, draftWithAI = false) {
   if (t.followupDraft?.signature === signature) return t.followupDraft.message;
   return person(t.owner).pto
     ? `Hi ${person(t.owner).name.split(" ")[0]}, we're arranging coverage for “${t.title}” while you are unavailable. Please share any handoff context when you're available. A coordinator will approve the replacement.`
-    : `Hi ${person(t.owner).name.split(" ")[0]}, a quick check on “${t.title}”, due ${t.due || "date not set"}. Please add the required evidence or flag a blocker: ${t.criteria} You can review the task in ProofPilot.`;
+    : `Hi ${person(t.owner).name.split(" ")[0]}, a quick check on “${t.title}”, due ${t.due || "date not set"}. Please add the required evidence or flag a blocker: ${t.criteria} You can review the task in TruthLink.`;
 }
 async function copyFollowup(id) {
   try {
@@ -1220,7 +1236,7 @@ function exportData() {
         {
           ...state,
           meta: {
-            app: "ProofPilot",
+            app: "TruthLink",
             demo: true,
             exported_at: new Date().toISOString(),
           },
@@ -1346,5 +1362,53 @@ function setProgress(id, value) {
   review(id);
   render();
   toast("Progress recorded. Completion still requires evidence and review.");
+}
+function recordDecision(t, kind, summary, why) {
+  state.decisions ||= [];
+  state.decisions.push({ id: "d" + crypto.randomUUID(), at: new Date().toISOString(), by: "taylor", kind, task_id: t.id, summary, why, superseded_by: null });
+}
+function decisionReason() {
+  const why = document.getElementById("decisionWhy")?.value.trim();
+  if (!why) { toast("Add a short reason for the decision."); return null; }
+  return why;
+}
+function reject(id) {
+  const t = state.tasks.find(t => t.id === id);
+  if (!t || !active(t) || t.type !== "manager") return;
+  const why = decisionReason();
+  if (!why) return;
+  recordDecision(t, "rejection", "Requested changes to " + t.title, why);
+  t.checked = false;
+  t.status = "in_progress";
+  log("Team lead requested changes to " + t.title + ": " + why);
+  closeModal(); render(); review(id);
+}
+function specChange(id, confirm = false) {
+  const t = state.tasks.find(t => t.id === id);
+  if (!confirm) return show(`<h2>Change requirements</h2><label>Acceptance criteria</label><textarea id="newSpec">${esc(t.criteria)}</textarea><label>Why</label><input id="decisionWhy" maxlength="280"><p class="hint">Recorded by Taylor, demo team lead.</p>`, `<button class="primary" onclick="specChange('${id}',true)">Record change</button>`);
+  const why = decisionReason(), criteria = document.getElementById("newSpec").value.trim();
+  if (!why || !criteria) return toast("Add criteria and a reason.");
+  recordDecision(t,"spec_change","Requirements changed for " + t.title, why + " · Before: " + t.criteria + " · After: " + criteria);
+  t.criteria = criteria; t.checked = false; t.status = "in_progress"; delete t.aiReview;
+  log("Requirements updated for " + t.title); closeModal(); render(); review(id);
+}
+let decisionsFilter = "";
+function decisionsPage() {
+  const subsystems = [...new Set(state.tasks.map(t => t.project))].sort();
+  const decisions = (state.decisions || []).filter(d => !decisionsFilter || state.tasks.find(t => t.id === d.task_id)?.project === decisionsFilter).slice().sort((a,b) => b.at.localeCompare(a.at));
+  return heading("Team memory", "Decisions", "What changed, why it changed, and which decisions still apply.") + `<select aria-label="Filter decisions by subsystem" onchange="decisionsFilter=this.value;render()"><option value="">All subsystems</option>${subsystems.map(p => `<option value="${esc(p)}" ${p === decisionsFilter ? "selected" : ""}>${esc(p)}</option>`).join("")}</select><section class="panel section-gap"><div class="panel-body">${decisions.map(d => {
+    const task = state.tasks.find(t => t.id === d.task_id), newer = state.decisions.find(n => n.id === d.superseded_by);
+    return `<article class="draft" id="decision-${esc(d.id)}"><div class="row"><h3>${esc(d.summary)}</h3><span class="tag ${d.superseded_by ? "gray" : ""}">${esc(d.kind)}${d.source === "fictional_seed" ? " · Fictional" : ""}</span></div><p>${esc(d.at)} · ${esc(person(d.by)?.name || d.by)} · ${esc(task?.project || "Unknown subsystem")}</p><p><strong>Why:</strong> ${esc(d.why)}</p>${newer ? `<p>Superseded by: <a href="#decision-${esc(newer.id)}">${esc(newer.summary)}</a></p>` : `<button class="small" onclick="supersedeDecision('${d.id}')">Mark superseded</button>`}</article>`;
+  }).join("") || '<p>No decisions in this view.</p>'}</div></section><p class="hint">Fictional history is labelled. New actions use the demo team-lead identity; this is not authenticated authorization.</p>`;
+}
+function supersedeDecision(id, confirm = false) {
+  const d = state.decisions.find(d => d.id === id);
+  if (!d || d.superseded_by) return;
+  const newer = state.decisions.filter(n => n.task_id === d.task_id && n.at > d.at);
+  if (!newer.length) return toast("Record a newer decision for this task first.");
+  if (!confirm) return show(`<h2>Link the newer decision</h2><select id="newerDecision">${newer.map(n => `<option value="${esc(n.id)}">${esc(n.summary)}</option>`).join("")}</select>`, `<button class="primary" onclick="supersedeDecision('${id}',true)">Mark superseded</button>`);
+  const choice = document.getElementById("newerDecision").value;
+  if (!newer.some(n => n.id === choice)) return toast("Choose a newer decision for this task.");
+  d.superseded_by = choice; save(); closeModal(); render();
 }
 render();
