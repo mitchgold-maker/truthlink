@@ -495,6 +495,7 @@ function render() {
       integrations: integrationsPage,
     }[page]() +
     `<p class="page-note">Demo workspace · Fictional team records · ${esc(syncStatus)} · Fusion snapshots and AI results show their source.</p>`;
+  labelControls(document.getElementById("app"));
 }
 function overview() {
   let pending = state.tasks.filter((t) => t.status === "pending_approval"),
@@ -758,16 +759,35 @@ function reassign(tid, pid, confirmed = false) {
   render();
   toast("Reassignment approved. Workload updated.");
 }
+let modalReturnFocus = null, controlLabelSequence = 0;
+function labelControls(root) {
+  root.querySelectorAll("input,select,textarea").forEach(control => {
+    if (control.labels?.length || control.hasAttribute("aria-label") || control.hasAttribute("aria-labelledby")) return;
+    const label = control.previousElementSibling;
+    if (label?.tagName === "LABEL") {
+      control.id ||= "control-" + (++controlLabelSequence); label.htmlFor = control.id;
+    } else control.setAttribute("aria-label", control.placeholder || control.id?.replace(/([A-Z])/g," $1") || "Choose an option");
+  });
+}
 function show(body, footer = "") {
+  const modal = document.getElementById("modal");
+  if (!modal.open) modalReturnFocus = document.activeElement;
   document.getElementById("modal").innerHTML =
     `<div class="modal-content">${body}</div><div class="modal-footer"><button onclick="closeModal()">Close</button>${footer}</div>`;
-  document.getElementById("modal").showModal();
+  labelControls(modal);
+  const title = modal.querySelector("h2");
+  if (title) { title.id = "modalTitle"; modal.setAttribute("aria-labelledby", title.id); }
+  else modal.setAttribute("aria-label","Workspace dialog");
+  modal.showModal();
+  modal.querySelector("input:not([disabled]),select:not([disabled]),textarea:not([disabled]),button:not([disabled]),a[href]")?.focus();
 }
 function closeModal() {
   document.getElementById("modal").close();
+  if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
 }
 function review(id) {
   const t = state.tasks.find((t) => t.id === id);
+  if (!t) return toast("Task no longer exists. Create a task or reset the demo.");
   show(
     `<div class="eyebrow">${esc(t.project)} · ${t.type === "exists" ? "File presence check" : "Coordinator approval required"}</div><h2 style="margin-top:10px">${esc(t.title)}</h2><div class="row"><p>${esc(person(t.owner)?.name)} · Due ${esc(t.due)}</p>${badge(t)}</div>${active(t) ? `<label>Progress update</label><select aria-label="Update progress" onchange="setProgress('${t.id}',this.value)"><option value="">Choose an update…</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select>` : ""}<label>Acceptance criteria</label><div class="evidence">${esc(t.criteria)}</div><button class="small" onclick="specChange('${id}')">Record spec change</button>${active(t) && t.type === "manager" ? '<label>Decision reason (required for approval or changes)</label><input id="decisionWhy" maxlength="280" placeholder="Why is this decision right?"><label>Hours you actually spent (self-reported, optional)</label><input id="reportedHours" type="number" min="0" max="1000" step="0.25"><p class="hint">Recorded by Taylor, demo team lead.</p>' : ""}${t.aiReview ? `<label>AI review</label><div class="evidence"><span class="tag ${t.aiReview.verdict === "pass" ? "" : "amber"}">${esc(t.aiReview.verdict)}</span><p>${t.aiReview.checks.filter(c => c.method === "measured").length} of ${t.aiReview.checks.length} criteria measured from Fusion · ${t.aiReview.checks.filter(c => c.method === "ai").length} AI checks · ${t.aiReview.checks.filter(c => c.method === "human").length} need team lead</p><p>${esc(t.aiReview.summary)}</p>${t.aiReview.checks.map((c) => `<p><span class="tag" style="background:${c.method === "measured" ? "#e3efdf" : c.method === "ai" ? "#e1edff" : "#eee"};color:${c.method === "measured" ? "#385b2c" : c.method === "ai" ? "#234e89" : "#555"}">${c.method === "measured" ? "Measured" : c.method === "ai" ? "AI" : "Needs team lead"}</span> <strong>${esc(c.met)} · ${esc(c.criterion)}</strong><br>${esc(c.reason)}</p>`).join("")}${t.aiReview.missing.length ? `<p>Missing: ${esc(t.aiReview.missing.join("; "))}</p>` : ""}<p class="hint">AI · ${esc(t.aiReview.provider)} · ${esc(t.aiReview.model)} · ${esc(t.aiReview.at)}</p></div>` : ""}<label>Fusion document (optional)</label><input value="${esc(t.fusion_document || "")}" aria-label="Fusion document" onchange="setFusionDocument('${id}',this.value)">${t.fusion_document && active(t) ? `<button onclick="pullFusion('${id}')">Pull latest from Fusion</button>` : ""}${t.fusionDiff ? `<p>${esc(t.fusionDiff)}</p>` : ""}<label>Submitted evidence</label><div class="evidence">${t.evidence.length ? t.evidence.map((e) => "▧ " + esc(e)).join("<br>") : "No evidence submitted."}</div>${t.status !== "completed" ? `<input type="file" id="evidenceFile" multiple aria-label="Upload task evidence"><p class="hint">Text-like files are stored in this browser (up to 15,000 characters) and sent to the AI when you run a review. Other file contents cannot be read; their filenames alone do not prove quality.</p><p class="hint">Tip: upload a Fusion snapshot (*.truthlink.json) to verify mass, versions and components.</p><button style="margin-top:12px" onclick="attach('${id}')">Add evidence</button><label>Review result</label><div class="evidence">${esc(t.checkSource || "Not reviewed")}<br>${t.checked ? "Evidence checklist reviewed. Quality and suitability remain a coordinator decision." : "Evidence has not passed the demo checklist. File activity alone cannot prove completion."}</div>` : '<div class="evidence">Completed and recorded in the task history.</div>'}`,
     t.status === "completed"
@@ -1455,7 +1475,7 @@ function supersedeDecision(id, confirm = false) {
   if (!d || d.superseded_by) return;
   const newer = state.decisions.filter(n => n.task_id === d.task_id && n.at > d.at);
   if (!newer.length) return toast("Record a newer decision for this task first.");
-  if (!confirm) return show(`<h2>Link the newer decision</h2><select id="newerDecision">${newer.map(n => `<option value="${esc(n.id)}">${esc(n.summary)}</option>`).join("")}</select>`, `<button class="primary" onclick="supersedeDecision('${id}',true)">Mark superseded</button>`);
+  if (!confirm) return show(`<h2>Link the newer decision</h2><select id="newerDecision" aria-label="Newer decision">${newer.map(n => `<option value="${esc(n.id)}">${esc(n.summary)}</option>`).join("")}</select>`, `<button class="primary" onclick="supersedeDecision('${id}',true)">Mark superseded</button>`);
   const choice = document.getElementById("newerDecision").value;
   if (!newer.some(n => n.id === choice)) return toast("Choose a newer decision for this task.");
   d.superseded_by = choice; save(); closeModal(); render();
@@ -1738,8 +1758,20 @@ function deadlineForecast() {
     return `<tr><td>${esc(subsystem)}</td><td>${hours.toFixed(1)}h</td><td>${capacity.toFixed(1)}h</td><td>${finish === null ? "No available capacity" : new Date(finish).toISOString().slice(0,10)}</td><td><span class="tag ${finish === null || late > 0 ? "amber" : ""}">${finish === null ? "Unscheduled" : late ? late+" days late" : "On track"}</span></td></tr>`;
   }).join("")}</tbody></table></div><div class="panel-body"><p class="hint">Projection from current assignments and declared capacity. Shared member capacity is allocated across subsystems in proportion to assigned estimates. Competition date is saved on this device.</p>${!subsystems.length ? "<p>No tasks to forecast.</p>" : ""}</div></section>`;
 }
+const modalElement = document.getElementById("modal");
+modalElement.addEventListener("cancel",event => { event.preventDefault(); closeModal(); });
+modalElement.addEventListener("keydown",event => {
+  if (event.key !== "Tab") return;
+  const controls = [...modalElement.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]')].filter(el => el.getClientRects().length);
+  if (!controls.length) { event.preventDefault(); return; }
+  const first = controls[0], last = controls.at(-1);
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});
+document.getElementById("nav").addEventListener("keydown",event => {
+  if (event.key === "Escape" && document.getElementById("nav").classList.contains("mobile-open")) { toggleNav(); document.getElementById("navToggle").focus(); }
+});
 render();
-
 loadSharedState();
 
 loadPerformance();
