@@ -15,8 +15,8 @@ for (const line of fs
   const m = line.match(/^([A-Z_]+)=(.*)$/);
   if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
 }
-process.env.LLM_MAX_CALLS_PER_HOUR = "450";
-process.env.LLM_TOKEN_BUDGET = "700000";
+process.env.LLM_MAX_CALLS_PER_HOUR = "600";
+process.env.LLM_TOKEN_BUDGET = "900000";
 process.env.LLM_MAX_OUTPUT_TOKENS = "3000";
 
 const ROUNDS = Number(process.env.LAB_ROUNDS ?? 3);
@@ -84,7 +84,7 @@ async function pool<T, R>(
 
 async function main() {
   const { callJson, usage } = await import("../../lib/ai/llm");
-  const dev = makeCases("dev", 16, 11);
+  const dev = makeCases("dev", 28, 11);
   const test = makeCases("test", 24, 97);
 
   async function evaluate(prompt: string, cases: Case[]): Promise<Score> {
@@ -187,6 +187,7 @@ async function main() {
   console.log(`  dev accuracy ${(base.accuracy * 100).toFixed(1)}%`);
 
   let best = { prompt: BASELINE, score: base, agent: "Baseline" };
+  const bestByRound = [{ round: 0, agent: "Baseline", dev_accuracy: base.accuracy, dev_case_accuracy: base.caseAccuracy }];
   const mine = new Map<string, { prompt: string; score: Score }>();
   const parallelism: {
     round: number;
@@ -254,9 +255,10 @@ async function main() {
       ),
     });
     const top = candidates.sort(
-      (a, b) => b.score.accuracy - a.score.accuracy,
+      (a, b) => b.score.accuracy - a.score.accuracy || b.score.caseAccuracy - a.score.caseAccuracy,
     )[0];
-    if (top.score.accuracy > best.score.accuracy) best = top;
+    if (top.score.accuracy > best.score.accuracy || (top.score.accuracy === best.score.accuracy && top.score.caseAccuracy > best.score.caseAccuracy)) best = top;
+    bestByRound.push({ round, agent: best.agent, dev_accuracy: best.score.accuracy, dev_case_accuracy: best.score.caseAccuracy });
     console.log(
       `Round ${round} best so far: ${best.agent} ${(best.score.accuracy * 100).toFixed(1)}%`,
     );
@@ -275,6 +277,8 @@ async function main() {
     agents: STRATEGIES,
     log,
     parallelism,
+    best_by_round: bestByRound,
+    reproduce: "cd web && npx tsx scripts/verifier-lab/run.ts",
     winner: {
       agent: best.agent,
       dev_accuracy: best.score.accuracy,

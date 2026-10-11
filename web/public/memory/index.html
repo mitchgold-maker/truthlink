@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TruthLink — Team Memory</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      :root { --green: #276d55; --ink: #1f2d28; --muted: #66746d; --line: #e3e8e2; --bg: #f7f8f4; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; color: var(--ink); background: var(--bg); }
+      main { max-width: 900px; margin: 0 auto; padding: 24px 16px 64px; }
+      header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+      header img { height: 46px; margin: -6px -10px; }
+      h1 { font-size: 28px; margin: 18px 0 4px; }
+      .sub { color: var(--muted); margin: 0 0 18px; }
+      .panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+      .tag { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: #e7f1ec; color: var(--green); }
+      .tag.gray { background: #eef1ec; color: var(--muted); }
+      form { display: flex; gap: 8px; flex-wrap: wrap; }
+      input[type=search] { flex: 1 1 260px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; }
+      button { padding: 10px 16px; border-radius: 10px; border: 0; background: var(--green); color: #fff; font: inherit; cursor: pointer; }
+      button:disabled { opacity: .5; cursor: wait; }
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+      .chips button { background: #eef1ec; color: var(--ink); padding: 5px 10px; font-size: 13px; }
+      .hit { border-top: 1px solid var(--line); padding: 12px 0; }
+      .hit:first-child { border-top: 0; }
+      .hit h3 { margin: 0 0 4px; font-size: 15px; }
+      .hit p { margin: 0; color: var(--muted); font-size: 14px; }
+      .score { float: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+      .bar { height: 6px; background: #eef1ec; border-radius: 3px; overflow: hidden; margin-top: 10px; }
+      .bar i { display: block; height: 100%; width: 0; background: var(--green); transition: width .2s; }
+      a { color: var(--green); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header><img src="/truthlink-logo.png" alt="TruthLink" /><span class="tag">Team Memory · on-device AI</span></header>
+      <h1>Ask what the team already knows</h1>
+      <p class="sub">Semantic search across decisions, verified work and open tasks. The embedding model runs <strong>in this browser</strong>: workspace data never leaves this device, which matters for export-controlled engineering work.</p>
+      <div class="panel">
+        <div id="status" class="sub" style="margin:0 0 10px">Loading the on-device model…</div>
+        <div class="bar"><i id="progress"></i></div>
+      </div>
+      <div class="panel">
+        <form id="ask">
+          <label for="q" class="sub" style="width:100%;margin:0">Question</label>
+          <input id="q" type="search" placeholder="Why did we change the upright material?" autocomplete="off" />
+          <button id="go" type="submit" disabled>Search</button>
+        </form>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="panel" id="results" hidden></div>
+      <p class="sub"><a href="/">← Back to TruthLink</a> · <span id="meta"></span></p>
+    </main>
+    <script type="module">
+      import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2";
+      env.allowLocalModels = false;
+      const MODEL = "Xenova/all-MiniLM-L6-v2";
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+      async function loadState() {
+        try {
+          const r = await fetch("/api/state");
+          if (r.ok) {
+            const j = await r.json();
+            if (j.state) return { state: j.state, source: "MongoDB Atlas" };
+          }
+        } catch {}
+        for (const k of Object.keys(localStorage)) {
+          if (!/truthlink|proofpilot/i.test(k)) continue;
+          try {
+            const s = JSON.parse(localStorage.getItem(k));
+            if (s && Array.isArray(s.tasks)) return { state: s, source: "this browser" };
+          } catch {}
+        }
+        // Fresh browser: fall back to the app's built-in (fictional) demo seed.
+        try {
+          const src = await (await fetch("/app.js")).text();
+          const start = src.indexOf("const seed =") + "const seed =".length;
+          const end = src.indexOf("\n};", start) + 2;
+          const seed = new Function("return (" + src.slice(start, end) + ")")();
+          if (seed?.tasks) return { state: seed, source: "demo seed (fictional)" };
+        } catch {}
+        return { state: null, source: "none" };
+      }
+
+      function documents(state) {
+        const name = (id) => state.people?.find((p) => p.id === id)?.name ?? id ?? "Unassigned";
+        const docs = [];
+        for (const d of state.decisions ?? [])
+          docs.push({ kind: d.superseded_by ? "Decision (superseded)" : "Decision", title: d.summary, body: `Why: ${d.why ?? ""}. By ${name(d.by)} on ${String(d.at ?? "").slice(0, 10)}.`, text: `${d.summary}. ${d.why ?? ""}` });
+        for (const p of state.people ?? [])
+          for (const r of p.records ?? [])
+            docs.push({ kind: "Verified work", title: `${r.title} — ${p.name}`, body: `Skills: ${(r.skills ?? []).join(", ")} · approved ${r.approved_at ?? ""}`, text: `${r.title}. ${(r.skills ?? []).join(" ")}. ${p.name} ${p.role ?? ""}` });
+        for (const t of state.tasks ?? [])
+          docs.push({ kind: t.status === "completed" ? "Completed task" : "Task", title: t.title, body: `${t.project ?? ""} · ${name(t.owner)} · ${t.status} · ${t.criteria ?? ""}`, text: `${t.title}. ${t.criteria ?? ""} ${t.project ?? ""} ${(t.skills ?? []).join(" ")}` });
+        return docs;
+      }
+
+      const cos = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+
+      const { state, source } = await loadState();
+      if (!state) {
+        $("status").textContent = "No workspace found. Open TruthLink first so there is data to search.";
+      } else {
+        const docs = documents(state);
+        const t0 = performance.now();
+        const embed = await pipeline("feature-extraction", MODEL, {
+          dtype: "q8",
+          progress_callback: (p) => { if (p.progress) $("progress").style.width = p.progress + "%"; },
+        });
+        $("progress").style.width = "100%";
+        const vec = async (texts) => (await embed(texts, { pooling: "mean", normalize: true })).tolist();
+        const vectors = await vec(docs.map((d) => d.text));
+        const ms = Math.round(performance.now() - t0);
+        $("status").innerHTML = `Ready. <span class="tag">${docs.length} items indexed on-device in ${(ms / 1000).toFixed(1)} s</span> <span class="tag gray">${MODEL} · data from ${esc(source)}</span>`;
+        $("meta").textContent = `Model: ${MODEL} (runs locally via WebAssembly). No workspace text is sent to any server.`;
+        $("go").disabled = false;
+
+        async function search(q) {
+          if (!q.trim()) return;
+          $("go").disabled = true;
+          const s = performance.now();
+          const [qv] = await vec([q]);
+          const hits = docs.map((d, i) => ({ d, score: cos(qv, vectors[i]) })).sort((a, b) => b.score - a.score).slice(0, 6);
+          $("results").hidden = false;
+          $("results").innerHTML = `<div class="sub" style="margin:0 0 6px">Top matches · ${Math.round(performance.now() - s)} ms on this device</div>` +
+            hits.map(({ d, score }) => `<div class="hit"><span class="score">${score.toFixed(2)}</span><span class="tag ${d.kind.includes("superseded") ? "gray" : ""}">${esc(d.kind)}</span><h3>${esc(d.title)}</h3><p>${esc(d.body)}</p></div>`).join("");
+          $("go").disabled = false;
+        }
+        $("ask").addEventListener("submit", (e) => { e.preventDefault(); search($("q").value); });
+        for (const q of ["Why did we change the upright material?", "Who has done suspension work?", "What is blocking electronics?", "What did Riley hand off?"]) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = q;
+          b.onclick = () => { $("q").value = q; search(q); };
+          $("chips").appendChild(b);
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -30,7 +30,16 @@ type Style = {
   notDone: (t: string) => string;
   claim: (who: string) => string;
 };
-const STYLE: Record<"dev" | "test", Style> = {
+const STYLE: Record<"dev" | "devB" | "test", Style> = {
+  // Second dev phrasing with imperial units, so agents must learn unit handling during optimisation.
+  devB: {
+    stress: (v, lc) => `${lc}: max stress ${Math.round(v * 145.038)} psi.`,
+    fos: (v) => `SF = ${v}.`,
+    mass: (g, rev) => `Rev ${rev} came in at ${(g / 453.592).toFixed(3)} lb.`,
+    covers: (t) => `Includes a section on ${t}.`,
+    notDone: (t) => `${t[0].toUpperCase() + t.slice(1)}: not started.`,
+    claim: (who) => `${who} checked it and thinks stress is OK.`,
+  },
   dev: {
     stress: (v, lc) => `${lc} load case: peak von Mises ${v} MPa.`,
     fos: (v) => `Factor of safety ${v}.`,
@@ -51,9 +60,9 @@ const STYLE: Record<"dev" | "test", Style> = {
 
 export function makeCases(split: "dev" | "test", n: number, seed: number): Case[] {
   const r = rng(seed);
-  const st = STYLE[split];
   const out: Case[] = [];
   for (let i = 0; i < n; i++) {
+    const st = split === "test" ? STYLE.test : r() < 0.5 ? STYLE.dev : STYLE.devB;
     const part = pick(r, PARTS);
     const who = pick(r, PEOPLE);
     const criteria: string[] = [];
