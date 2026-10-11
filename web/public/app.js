@@ -422,7 +422,13 @@ const badge = (t) =>
 function save() {
   for (const t of state.tasks) {
     const signature = JSON.stringify([t.status,t.owner,t.evidence,t.evidenceDocs]);
-    const previous = taskChanges.get(t.id);
+    const previous = taskChanges.get(t.id), before = previous ? JSON.parse(previous) : null;
+    if (!before) track("created",t);
+    else {
+      if (before[0] !== t.status) track("status",t);
+      if (before[1] !== t.owner) track("reassigned",t);
+      if (JSON.stringify(before[2]) !== JSON.stringify(t.evidence) || JSON.stringify(before[3]) !== JSON.stringify(t.evidenceDocs)) track("evidence_added",t,{source:t.evidence_source || "app"});
+    }
     if (t.recurring === "weekly" && t.status === "completed" && previous && JSON.parse(previous)[0] !== "completed") nextWeeklyTask(t);
     if (previous !== signature) t.updated_at = new Date().toISOString();
     taskChanges.set(t.id, signature);
@@ -744,7 +750,7 @@ function closeModal() {
 function review(id) {
   const t = state.tasks.find((t) => t.id === id);
   show(
-    `<div class="eyebrow">${esc(t.project)} · ${t.type === "exists" ? "File presence check" : "Coordinator approval required"}</div><h2 style="margin-top:10px">${esc(t.title)}</h2><div class="row"><p>${esc(person(t.owner)?.name)} · Due ${esc(t.due)}</p>${badge(t)}</div>${active(t) ? `<label>Progress update</label><select aria-label="Update progress" onchange="setProgress('${t.id}',this.value)"><option value="">Choose an update…</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select>` : ""}<label>Acceptance criteria</label><div class="evidence">${esc(t.criteria)}</div><button class="small" onclick="specChange('${id}')">Record spec change</button>${active(t) && t.type === "manager" ? '<label>Decision reason (required for approval or changes)</label><input id="decisionWhy" maxlength="280" placeholder="Why is this decision right?"><p class="hint">Recorded by Taylor, demo team lead.</p>' : ""}${t.aiReview ? `<label>AI review</label><div class="evidence"><span class="tag ${t.aiReview.verdict === "pass" ? "" : "amber"}">${esc(t.aiReview.verdict)}</span><p>${t.aiReview.checks.filter(c => c.method === "measured").length} of ${t.aiReview.checks.length} criteria measured from Fusion · ${t.aiReview.checks.filter(c => c.method === "ai").length} AI checks · ${t.aiReview.checks.filter(c => c.method === "human").length} need team lead</p><p>${esc(t.aiReview.summary)}</p>${t.aiReview.checks.map((c) => `<p><span class="tag" style="background:${c.method === "measured" ? "#e3efdf" : c.method === "ai" ? "#e1edff" : "#eee"};color:${c.method === "measured" ? "#385b2c" : c.method === "ai" ? "#234e89" : "#555"}">${c.method === "measured" ? "Measured" : c.method === "ai" ? "AI" : "Needs team lead"}</span> <strong>${esc(c.met)} · ${esc(c.criterion)}</strong><br>${esc(c.reason)}</p>`).join("")}${t.aiReview.missing.length ? `<p>Missing: ${esc(t.aiReview.missing.join("; "))}</p>` : ""}<p class="hint">AI · ${esc(t.aiReview.provider)} · ${esc(t.aiReview.model)} · ${esc(t.aiReview.at)}</p></div>` : ""}<label>Submitted evidence</label><div class="evidence">${t.evidence.length ? t.evidence.map((e) => "▧ " + esc(e)).join("<br>") : "No evidence submitted."}</div>${t.status !== "completed" ? `<input type="file" id="evidenceFile" multiple aria-label="Upload task evidence"><p class="hint">Text-like files are stored in this browser (up to 15,000 characters) and sent to the AI when you run a review. Other file contents cannot be read; their filenames alone do not prove quality.</p><p class="hint">Tip: upload a Fusion snapshot (*.truthlink.json) to verify mass, versions and components.</p><button style="margin-top:12px" onclick="attach('${id}')">Add evidence</button><label>Review result</label><div class="evidence">${esc(t.checkSource || "Not reviewed")}<br>${t.checked ? "Evidence checklist reviewed. Quality and suitability remain a coordinator decision." : "Evidence has not passed the demo checklist. File activity alone cannot prove completion."}</div>` : '<div class="evidence">Completed and recorded in the task history.</div>'}`,
+    `<div class="eyebrow">${esc(t.project)} · ${t.type === "exists" ? "File presence check" : "Coordinator approval required"}</div><h2 style="margin-top:10px">${esc(t.title)}</h2><div class="row"><p>${esc(person(t.owner)?.name)} · Due ${esc(t.due)}</p>${badge(t)}</div>${active(t) ? `<label>Progress update</label><select aria-label="Update progress" onchange="setProgress('${t.id}',this.value)"><option value="">Choose an update…</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select>` : ""}<label>Acceptance criteria</label><div class="evidence">${esc(t.criteria)}</div><button class="small" onclick="specChange('${id}')">Record spec change</button>${active(t) && t.type === "manager" ? '<label>Decision reason (required for approval or changes)</label><input id="decisionWhy" maxlength="280" placeholder="Why is this decision right?"><label>Hours you actually spent (self-reported, optional)</label><input id="reportedHours" type="number" min="0" max="1000" step="0.25"><p class="hint">Recorded by Taylor, demo team lead.</p>' : ""}${t.aiReview ? `<label>AI review</label><div class="evidence"><span class="tag ${t.aiReview.verdict === "pass" ? "" : "amber"}">${esc(t.aiReview.verdict)}</span><p>${t.aiReview.checks.filter(c => c.method === "measured").length} of ${t.aiReview.checks.length} criteria measured from Fusion · ${t.aiReview.checks.filter(c => c.method === "ai").length} AI checks · ${t.aiReview.checks.filter(c => c.method === "human").length} need team lead</p><p>${esc(t.aiReview.summary)}</p>${t.aiReview.checks.map((c) => `<p><span class="tag" style="background:${c.method === "measured" ? "#e3efdf" : c.method === "ai" ? "#e1edff" : "#eee"};color:${c.method === "measured" ? "#385b2c" : c.method === "ai" ? "#234e89" : "#555"}">${c.method === "measured" ? "Measured" : c.method === "ai" ? "AI" : "Needs team lead"}</span> <strong>${esc(c.met)} · ${esc(c.criterion)}</strong><br>${esc(c.reason)}</p>`).join("")}${t.aiReview.missing.length ? `<p>Missing: ${esc(t.aiReview.missing.join("; "))}</p>` : ""}<p class="hint">AI · ${esc(t.aiReview.provider)} · ${esc(t.aiReview.model)} · ${esc(t.aiReview.at)}</p></div>` : ""}<label>Submitted evidence</label><div class="evidence">${t.evidence.length ? t.evidence.map((e) => "▧ " + esc(e)).join("<br>") : "No evidence submitted."}</div>${t.status !== "completed" ? `<input type="file" id="evidenceFile" multiple aria-label="Upload task evidence"><p class="hint">Text-like files are stored in this browser (up to 15,000 characters) and sent to the AI when you run a review. Other file contents cannot be read; their filenames alone do not prove quality.</p><p class="hint">Tip: upload a Fusion snapshot (*.truthlink.json) to verify mass, versions and components.</p><button style="margin-top:12px" onclick="attach('${id}')">Add evidence</button><label>Review result</label><div class="evidence">${esc(t.checkSource || "Not reviewed")}<br>${t.checked ? "Evidence checklist reviewed. Quality and suitability remain a coordinator decision." : "Evidence has not passed the demo checklist. File activity alone cannot prove completion."}</div>` : '<div class="evidence">Completed and recorded in the task history.</div>'}`,
     t.status === "completed"
       ? ""
       : `<button onclick="checkEvidence('${id}')">Review evidence</button>${t.type === "manager" && t.checked ? `<button class="primary" onclick="approve('${id}')">Coordinator: approve</button>` : ""}${t.type === "manager" ? `<button onclick="reject('${id}')">Request changes</button>` : ""}`,
@@ -793,6 +799,7 @@ async function checkEvidence(id) {
     t.status = "completed";
     t.checked = true;
     recordCompletion(t);
+    track("verified",t,{verdict:"pass"});
     log("File-presence check completed " + t.title);
     closeModal();
     render();
@@ -855,6 +862,7 @@ async function checkEvidence(id) {
       provider: json.provider,
       at: new Date().toISOString(),
     };
+    track("verified",t,{verdict:json.verdict});
     t.checkSource = "AI reviewed";
     t.checked = json.checks.length > 0 && !json.checks.some(c => c.met === "no");
     if (t.checked) t.status = "pending_approval";
@@ -894,6 +902,7 @@ async function checkEvidence(id) {
     t.checked = Boolean(t.evidence.length && !missing.length);
     if (t.checked) t.status = "pending_approval";
     else if (t.status === "pending_approval") t.status = "in_progress";
+    track("verified",t,{verdict:t.checked ? "needs_review" : "fail"});
     log(t.checkSource + " for " + t.title + "; filename presence only");
     toast(
       t.checkSource +
@@ -914,9 +923,13 @@ function approve(id) {
     return toast("Evidence checklist must pass before coordinator approval.");
   const why = decisionReason();
   if (!why) return;
+  const reported = document.getElementById("reportedHours")?.value.trim() || "";
+  if (reported && (!Number.isFinite(Number(reported)) || Number(reported) < 0 || Number(reported) > 1000)) return toast("Self-reported hours must be between 0 and 1000.");
   recordDecision(t,"approval","Approved " + t.title,why);
   t.status = "completed";
   recordCompletion(t);
+  track("approved",t);
+  if (reported) track("hours_reported",t,{reported_hours:Number(reported)});
   log(
     `Coordinator approved ${t.title}; ${person(t.owner).name}'s history updated`,
   );
@@ -1383,6 +1396,7 @@ function reject(id) {
   const why = decisionReason();
   if (!why) return;
   recordDecision(t, "rejection", "Requested changes to " + t.title, why);
+  track("rejected",t);
   t.checked = false;
   t.status = "in_progress";
   log("Team lead requested changes to " + t.title + ": " + why);
@@ -1551,6 +1565,20 @@ async function loadSharedState() {
     stateReady = true; syncBadge("Offline · saved on this device");
     toast("Shared workspace unavailable: " + e.message + ". Using device records.");
   }
+}
+let eventQueue = [], eventTimer;
+function track(kind, task, extra = {}) {
+  if (!syncStatus.startsWith("Synced")) return;
+  eventQueue.push({workspace:"demo-racing-team",task_id:task.id,task_title:task.title.slice(0,300),subsystem:task.project?.slice(0,100),member_id:task.owner || "",skills:(task.skills || []).slice(0,20).map(s => s.slice(0,80)),kind,status:task.status,estimated_hours:Number(task.hours) || 0,source:"app",at:new Date().toISOString(),...extra});
+  if (!eventTimer) eventTimer = setTimeout(flushEvents,200);
+}
+async function flushEvents() {
+  eventTimer = null;
+  const batch = eventQueue.splice(0,200);
+  if (!batch.length || !syncStatus.startsWith("Synced")) { eventQueue = []; return; }
+  try { await apiJson("/api/events",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(batch)}); }
+  catch { /* Offline telemetry is deliberately dropped; workspace actions remain usable. */ }
+  if (eventQueue.length) eventTimer = setTimeout(flushEvents,200);
 }
 render();
 
