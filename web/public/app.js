@@ -355,6 +355,7 @@ seed.decisions = [
   {id:"seed-d2",at:"2026-10-08T10:00:00",by:"alex",kind:"spec_change",task_id:"t1",summary:"Back to 6061: 7075 stock lead time",why:"7075 stock would delay the build",superseded_by:null,source:"fictional_seed"},
   {id:"seed-d3",at:"2026-10-09T10:00:00",by:"taylor",kind:"approval",task_id:"t9",summary:"Released pedal box CAD",why:"Team lead reviewed the model for release",superseded_by:null,source:"fictional_seed"}
 ];
+seed.tasks.find(t => t.id === "t2").fusion_document = "Front Upright";
 seed.tasks.forEach(t => t.updated_at = "2026-10-10T09:00:00");
 let state;
 try {
@@ -364,6 +365,8 @@ try {
 }
 if (!state.tasks.some(t => t.id === "logistics-food" || t.recurring_series === "logistics-food")) state.tasks.push(structuredClone(seed.tasks.find(t => t.id === "logistics-food")));
 state.decisions ||= structuredClone(seed.decisions);
+const uprightTask = state.tasks.find(t => t.id === "t2");
+if (uprightTask && uprightTask.fusion_document === undefined) uprightTask.fusion_document = "Front Upright";
 state.tasks.forEach(t => t.updated_at ||= "2026-10-10T09:00:00");
 const taskChanges = new Map(state.tasks.map(t => [t.id, JSON.stringify([t.status,t.owner,t.evidence,t.evidenceDocs])]));
 let page = "overview",
@@ -751,7 +754,7 @@ function closeModal() {
 function review(id) {
   const t = state.tasks.find((t) => t.id === id);
   show(
-    `<div class="eyebrow">${esc(t.project)} · ${t.type === "exists" ? "File presence check" : "Coordinator approval required"}</div><h2 style="margin-top:10px">${esc(t.title)}</h2><div class="row"><p>${esc(person(t.owner)?.name)} · Due ${esc(t.due)}</p>${badge(t)}</div>${active(t) ? `<label>Progress update</label><select aria-label="Update progress" onchange="setProgress('${t.id}',this.value)"><option value="">Choose an update…</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select>` : ""}<label>Acceptance criteria</label><div class="evidence">${esc(t.criteria)}</div><button class="small" onclick="specChange('${id}')">Record spec change</button>${active(t) && t.type === "manager" ? '<label>Decision reason (required for approval or changes)</label><input id="decisionWhy" maxlength="280" placeholder="Why is this decision right?"><label>Hours you actually spent (self-reported, optional)</label><input id="reportedHours" type="number" min="0" max="1000" step="0.25"><p class="hint">Recorded by Taylor, demo team lead.</p>' : ""}${t.aiReview ? `<label>AI review</label><div class="evidence"><span class="tag ${t.aiReview.verdict === "pass" ? "" : "amber"}">${esc(t.aiReview.verdict)}</span><p>${t.aiReview.checks.filter(c => c.method === "measured").length} of ${t.aiReview.checks.length} criteria measured from Fusion · ${t.aiReview.checks.filter(c => c.method === "ai").length} AI checks · ${t.aiReview.checks.filter(c => c.method === "human").length} need team lead</p><p>${esc(t.aiReview.summary)}</p>${t.aiReview.checks.map((c) => `<p><span class="tag" style="background:${c.method === "measured" ? "#e3efdf" : c.method === "ai" ? "#e1edff" : "#eee"};color:${c.method === "measured" ? "#385b2c" : c.method === "ai" ? "#234e89" : "#555"}">${c.method === "measured" ? "Measured" : c.method === "ai" ? "AI" : "Needs team lead"}</span> <strong>${esc(c.met)} · ${esc(c.criterion)}</strong><br>${esc(c.reason)}</p>`).join("")}${t.aiReview.missing.length ? `<p>Missing: ${esc(t.aiReview.missing.join("; "))}</p>` : ""}<p class="hint">AI · ${esc(t.aiReview.provider)} · ${esc(t.aiReview.model)} · ${esc(t.aiReview.at)}</p></div>` : ""}<label>Submitted evidence</label><div class="evidence">${t.evidence.length ? t.evidence.map((e) => "▧ " + esc(e)).join("<br>") : "No evidence submitted."}</div>${t.status !== "completed" ? `<input type="file" id="evidenceFile" multiple aria-label="Upload task evidence"><p class="hint">Text-like files are stored in this browser (up to 15,000 characters) and sent to the AI when you run a review. Other file contents cannot be read; their filenames alone do not prove quality.</p><p class="hint">Tip: upload a Fusion snapshot (*.truthlink.json) to verify mass, versions and components.</p><button style="margin-top:12px" onclick="attach('${id}')">Add evidence</button><label>Review result</label><div class="evidence">${esc(t.checkSource || "Not reviewed")}<br>${t.checked ? "Evidence checklist reviewed. Quality and suitability remain a coordinator decision." : "Evidence has not passed the demo checklist. File activity alone cannot prove completion."}</div>` : '<div class="evidence">Completed and recorded in the task history.</div>'}`,
+    `<div class="eyebrow">${esc(t.project)} · ${t.type === "exists" ? "File presence check" : "Coordinator approval required"}</div><h2 style="margin-top:10px">${esc(t.title)}</h2><div class="row"><p>${esc(person(t.owner)?.name)} · Due ${esc(t.due)}</p>${badge(t)}</div>${active(t) ? `<label>Progress update</label><select aria-label="Update progress" onchange="setProgress('${t.id}',this.value)"><option value="">Choose an update…</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select>` : ""}<label>Acceptance criteria</label><div class="evidence">${esc(t.criteria)}</div><button class="small" onclick="specChange('${id}')">Record spec change</button>${active(t) && t.type === "manager" ? '<label>Decision reason (required for approval or changes)</label><input id="decisionWhy" maxlength="280" placeholder="Why is this decision right?"><label>Hours you actually spent (self-reported, optional)</label><input id="reportedHours" type="number" min="0" max="1000" step="0.25"><p class="hint">Recorded by Taylor, demo team lead.</p>' : ""}${t.aiReview ? `<label>AI review</label><div class="evidence"><span class="tag ${t.aiReview.verdict === "pass" ? "" : "amber"}">${esc(t.aiReview.verdict)}</span><p>${t.aiReview.checks.filter(c => c.method === "measured").length} of ${t.aiReview.checks.length} criteria measured from Fusion · ${t.aiReview.checks.filter(c => c.method === "ai").length} AI checks · ${t.aiReview.checks.filter(c => c.method === "human").length} need team lead</p><p>${esc(t.aiReview.summary)}</p>${t.aiReview.checks.map((c) => `<p><span class="tag" style="background:${c.method === "measured" ? "#e3efdf" : c.method === "ai" ? "#e1edff" : "#eee"};color:${c.method === "measured" ? "#385b2c" : c.method === "ai" ? "#234e89" : "#555"}">${c.method === "measured" ? "Measured" : c.method === "ai" ? "AI" : "Needs team lead"}</span> <strong>${esc(c.met)} · ${esc(c.criterion)}</strong><br>${esc(c.reason)}</p>`).join("")}${t.aiReview.missing.length ? `<p>Missing: ${esc(t.aiReview.missing.join("; "))}</p>` : ""}<p class="hint">AI · ${esc(t.aiReview.provider)} · ${esc(t.aiReview.model)} · ${esc(t.aiReview.at)}</p></div>` : ""}<label>Fusion document (optional)</label><input value="${esc(t.fusion_document || "")}" aria-label="Fusion document" onchange="setFusionDocument('${id}',this.value)">${t.fusion_document && active(t) ? `<button onclick="pullFusion('${id}')">Pull latest from Fusion</button>` : ""}${t.fusionDiff ? `<p>${esc(t.fusionDiff)}</p>` : ""}<label>Submitted evidence</label><div class="evidence">${t.evidence.length ? t.evidence.map((e) => "▧ " + esc(e)).join("<br>") : "No evidence submitted."}</div>${t.status !== "completed" ? `<input type="file" id="evidenceFile" multiple aria-label="Upload task evidence"><p class="hint">Text-like files are stored in this browser (up to 15,000 characters) and sent to the AI when you run a review. Other file contents cannot be read; their filenames alone do not prove quality.</p><p class="hint">Tip: upload a Fusion snapshot (*.truthlink.json) to verify mass, versions and components.</p><button style="margin-top:12px" onclick="attach('${id}')">Add evidence</button><label>Review result</label><div class="evidence">${esc(t.checkSource || "Not reviewed")}<br>${t.checked ? "Evidence checklist reviewed. Quality and suitability remain a coordinator decision." : "Evidence has not passed the demo checklist. File activity alone cannot prove completion."}</div>` : '<div class="evidence">Completed and recorded in the task history.</div>'}`,
     t.status === "completed"
       ? ""
       : `<button onclick="checkEvidence('${id}')">Review evidence</button>${t.type === "manager" && t.checked ? `<button class="primary" onclick="approve('${id}')">Coordinator: approve</button>` : ""}${t.type === "manager" ? `<button onclick="reject('${id}')">Request changes</button>` : ""}`,
@@ -780,6 +783,7 @@ async function attach(id) {
     }),
   );
   if (!active(t)) return toast("Task is already completed.");
+  t.evidence_source = "app";
   t.evidence.push(...docs.map((d) => d.name));
   t.evidenceDocs = [...(t.evidenceDocs || []), ...docs];
   t.checked = false;
@@ -940,7 +944,7 @@ function approve(id) {
 }
 function newTask() {
   show(
-    `<h2>Create a task</h2><label>Title</label><input id="newTitle" placeholder="What needs to get done?"><label>Owner</label><select id="newOwner">${state.people.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select><label>Initiative</label><select id="newProject">${["Chassis & Suspension", "Powertrain", "Electronics & Operations"].map((p) => `<option>${p}</option>`).join("")}</select><label>Recurrence</label><select id="newRecurring"><option value="">One time</option><option value="weekly">Weekly</option></select><label>Due date</label><input id="newDue" type="date" value="2026-10-16"><label>Estimated remaining hours</label><input id="newHours" type="number" min="0.5" step="0.5" value="4"><label>Required skills (comma separated)</label><input id="newSkills" placeholder="Suspension design, CAD"><label>Acceptance criteria</label><input id="newCriteria" placeholder="Required deliverables and checks">`,
+    `<h2>Create a task</h2><label>Title</label><input id="newTitle" placeholder="What needs to get done?"><label>Owner</label><select id="newOwner">${state.people.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select><label>Initiative</label><select id="newProject">${["Chassis & Suspension", "Powertrain", "Electronics & Operations"].map((p) => `<option>${p}</option>`).join("")}</select><label>Recurrence</label><select id="newRecurring"><option value="">One time</option><option value="weekly">Weekly</option></select><label>Due date</label><input id="newDue" type="date" value="2026-10-16"><label>Estimated remaining hours</label><input id="newHours" type="number" min="0.5" step="0.5" value="4"><label>Required skills (comma separated)</label><input id="newSkills" placeholder="Suspension design, CAD"><label>Fusion document (optional)</label><input id="newFusionDocument" placeholder="Front Upright"><label>Acceptance criteria</label><input id="newCriteria" placeholder="Required deliverables and checks">`,
     `<button class="primary" onclick="createTask()">Create task</button>`,
   );
 }
@@ -970,6 +974,7 @@ function createTask() {
     criteria:
       document.getElementById("newCriteria").value ||
       "Coordinator review required.",
+    fusion_document: document.getElementById("newFusionDocument").value.trim(),
     evidence: [],
     checked: false,
   });
@@ -1608,6 +1613,33 @@ function performanceSection() {
   const rows = performanceData.members;
   const stuck = performanceData.tasks.filter(t => t.stage !== "approved").slice().sort((a,b) => b.days_in_stage-a.days_in_stage);
   return '<section class="panel section-gap"><div class="panel-head"><h2>Performance history</h2></div><div class="table-wrap"><table><thead><tr><th>Member</th><th>Skill</th><th>Completed</th><th>First-pass rate</th><th>Average rework</th><th>Median cycle days</th><th>Estimate / self-reported hours</th></tr></thead><tbody>' + rows.map(r => `<tr><td>${esc(person(r.member_id)?.name || r.member_id)}</td><td>${esc(r.skill)}</td><td>${esc(r.completed)}</td><td>${Number.isFinite(r.first_pass_rate) ? (r.first_pass_rate*100).toFixed(1)+"%" : "—"}</td><td>${number(r.avg_rework_cycles)}</td><td>${number(r.median_cycle_days)}</td><td>${Number.isFinite(r.estimate_accuracy) ? number(r.estimate_accuracy)+"× · self-reported" : "Not self-reported"}</td></tr>`).join("") + '</tbody></table></div><div class="panel-body">' + (!rows.length ? '<p>No approved task events recorded yet.</p>' : '') + '<h3>Stuck work</h3>' + (stuck.map(t => `<p><strong>${esc(t.title || state.tasks.find(task => task.id === t.task_id)?.title || t.task_id)}</strong> · ${esc(t.stage)} · ${number(t.days_in_stage)} days · ${esc(t.rework_cycles)} rework cycles</p>`).join("") || '<p>No open event history.</p>') + '<p class="hint">Calendar time between recorded events. Hours only when members report them.</p></div></section>';
+}
+function setFusionDocument(id, value) {
+  const t = state.tasks.find(t => t.id === id);
+  if (!t) return;
+  t.fusion_document = value.trim(); delete t.fusionDiff; save();
+}
+async function pullFusion(id) {
+  const t = state.tasks.find(t => t.id === id);
+  if (!t?.fusion_document || !active(t) || t.pullingFusion) return;
+  t.pullingFusion = true;
+  const documentName = t.fusion_document;
+  try {
+    const {latest,previous} = await apiJson("/api/fusion/snapshot?document=" + encodeURIComponent(documentName));
+    if (!latest || latest.document !== documentName || !Number.isFinite(latest.proofpilot_snapshot)) throw new Error("Invalid Fusion snapshot");
+    if (!active(t) || t.fusion_document !== documentName) throw new Error("Task changed while pulling evidence");
+    const text = JSON.stringify(latest);
+    if (text.length > 15000) throw new Error("Snapshot exceeds verification text limit; export a compact snapshot");
+    const name = documentName + ".truthlink.json", doc = {name,size:new Blob([text]).size,type:"application/json",text};
+    t.evidence = [...new Set([...t.evidence,name])];
+    t.evidenceDocs = [...(t.evidenceDocs || []).filter(e => e.name !== name),doc];
+    const saved = latest.version_history?.at(-1);
+    t.fusionDiff = previous ? `Mass ${previous.mass_g ?? "unknown"} → ${latest.mass_g ?? "unknown"} g · v${previous.current_version ?? "?"} → v${latest.current_version ?? "?"} · saved by ${saved?.saved_by || "unknown"}` : "First received snapshot · no earlier snapshot to compare.";
+    t.evidence_source = "fusion"; t.checked = false; delete t.aiReview;
+    log("Pulled latest Fusion evidence for " + t.title);
+    await checkEvidence(id);
+  } catch (e) { toast("Fusion pull failed: " + e.message + ". Existing evidence retained; upload a snapshot instead."); }
+  finally { delete t.pullingFusion; }
 }
 render();
 
