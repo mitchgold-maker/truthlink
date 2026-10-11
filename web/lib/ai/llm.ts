@@ -20,7 +20,7 @@ export function llmConfigured() {
 // Spend guard so sponsor credits are never exceeded. Limits are per server instance;
 // move the counters to the database once it is connected for a global cap.
 const limits = {
-  maxOutputTokens: Number(process.env.LLM_MAX_OUTPUT_TOKENS ?? 1500),
+  maxOutputTokens: Number(process.env.LLM_MAX_OUTPUT_TOKENS ?? 4000),
   maxInputChars: Number(process.env.LLM_MAX_INPUT_CHARS ?? 24000),
   maxCallsPerHour: Number(process.env.LLM_MAX_CALLS_PER_HOUR ?? 120),
   tokenBudget: Number(process.env.LLM_TOKEN_BUDGET ?? 2_000_000),

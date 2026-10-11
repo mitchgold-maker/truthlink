@@ -77,7 +77,7 @@ export async function verifyEvidence(input: z.infer<typeof VerifyInput>) {
   });
   const verdict = verdictOf(checks);
   const missing = [...new Set([...checks.filter((c) => c.met === "no").map((c) => c.criterion), ...(ai?.missing ?? [])])];
-  const ruleChecks = decided.size, aiChecks = checks.length - ruleChecks;
+  const ruleChecks = checks.filter((c) => c.method === "measured").length, aiChecks = checks.filter((c) => c.method === "ai").length;
   const summary = [
     ai?.summary,
     ruleChecks ? `${ruleChecks} of ${checks.length} criteria settled by measured Fusion data${aiChecks ? "" : " (no AI call needed)"}.` : "",

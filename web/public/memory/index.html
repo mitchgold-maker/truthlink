@@ -81,6 +81,8 @@
           const start = src.indexOf("const seed =") + "const seed =".length;
           const end = src.indexOf("\n};", start) + 2;
           const seed = new Function("return (" + src.slice(start, end) + ")")();
+          const ds = src.indexOf("seed.decisions = [");
+          if (ds > -1) seed.decisions = new Function("return (" + src.slice(ds + "seed.decisions = ".length, src.indexOf("\n];", ds) + 2) + ")")();
           if (seed?.tasks) return { state: seed, source: "demo seed (fictional)" };
         } catch {}
         return { state: null, source: "none" };
@@ -89,8 +91,14 @@
       function documents(state) {
         const name = (id) => state.people?.find((p) => p.id === id)?.name ?? id ?? "Unassigned";
         const docs = [];
-        for (const d of state.decisions ?? [])
-          docs.push({ kind: d.superseded_by ? "Decision (superseded)" : "Decision", title: d.summary, body: `Why: ${d.why ?? ""}. By ${name(d.by)} on ${String(d.at ?? "").slice(0, 10)}.`, text: `${d.summary}. ${d.why ?? ""}` });
+        const decisionsById = Object.fromEntries((state.decisions ?? []).map((d) => [d.id, d]));
+        for (const d of state.decisions ?? []) {
+          // Link decision chains so a question about the old choice also surfaces the current one.
+          const newer = d.superseded_by ? decisionsById[d.superseded_by] : null;
+          const older = (state.decisions ?? []).find((x) => x.superseded_by === d.id);
+          const chain = newer ? ` Replaced by: ${newer.summary}.` : older ? ` Replaces: ${older.summary}.` : "";
+          docs.push({ kind: d.superseded_by ? "Decision (superseded)" : "Decision", title: d.summary, body: `Why: ${d.why ?? ""}.${chain} By ${name(d.by)} on ${String(d.at ?? "").slice(0, 10)}.`, text: `${d.summary}. ${d.why ?? ""}.${chain}` });
+        }
         for (const p of state.people ?? [])
           for (const r of p.records ?? [])
             docs.push({ kind: "Verified work", title: `${r.title} — ${p.name}`, body: `Skills: ${(r.skills ?? []).join(", ")} · approved ${r.approved_at ?? ""}`, text: `${r.title}. ${(r.skills ?? []).join(" ")}. ${p.name} ${p.role ?? ""}` });
@@ -107,10 +115,16 @@
       } else {
         const docs = documents(state);
         const t0 = performance.now();
-        const embed = await pipeline("feature-extraction", MODEL, {
+        let embed;
+        try {
+        embed = await pipeline("feature-extraction", MODEL, {
           dtype: "q8",
           progress_callback: (p) => { if (p.progress) $("progress").style.width = p.progress + "%"; },
         });
+        } catch (e) {
+          $("status").textContent = "Could not load the on-device model (network blocked?). Reload to retry.";
+          throw e;
+        }
         $("progress").style.width = "100%";
         const vec = async (texts) => (await embed(texts, { pooling: "mean", normalize: true })).tolist();
         const vectors = await vec(docs.map((d) => d.text));
@@ -124,7 +138,9 @@
           $("go").disabled = true;
           const s = performance.now();
           const [qv] = await vec([q]);
-          const hits = docs.map((d, i) => ({ d, score: cos(qv, vectors[i]) })).sort((a, b) => b.score - a.score).slice(0, 6);
+          const whyQ = /^\s*why\b/i.test(q); // "why" questions are answered by decisions, which record the why
+          // Superseded decisions are history, not the current answer: rank them below live records.
+          const hits = docs.map((d, i) => ({ d, score: cos(qv, vectors[i]) * (d.kind.includes("superseded") ? 0.8 : 1) * (whyQ && d.kind.startsWith("Decision") ? 1.6 : 1) })).sort((a, b) => b.score - a.score).slice(0, 6);
           $("results").hidden = false;
           $("results").innerHTML = `<div class="sub" style="margin:0 0 6px">Top matches · ${Math.round(performance.now() - s)} ms on this device</div>` +
             hits.map(({ d, score }) => `<div class="hit"><span class="score">${score.toFixed(2)}</span><span class="tag ${d.kind.includes("superseded") ? "gray" : ""}">${esc(d.kind)}</span><h3>${esc(d.title)}</h3><p>${esc(d.body)}</p></div>`).join("");
