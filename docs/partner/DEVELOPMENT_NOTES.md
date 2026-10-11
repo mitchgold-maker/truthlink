@@ -1,4 +1,4 @@
-# ProofPilot — Bloomerang challenge demo
+# TruthLink (formerly ProofPilot) — partner build notes
 
 A buildless volunteer coordination website. `dist/index.html` contains the interface and styles; `dist/app.js` contains the fictional seed records, local state, and interaction logic. The native Site is private.
 

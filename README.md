@@ -42,7 +42,7 @@ Details and rationale: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/DE
 ## Repo map
 
 ```
-proofpilot/
+truthlink/
 ├─ README.md              you are here
 ├─ AGENTS.md              rules for AI coding agents (Claude Code, Codex, Kiro)
 ├─ CLAUDE.md              points Claude Code at AGENTS.md

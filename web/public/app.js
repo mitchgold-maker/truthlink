@@ -1362,7 +1362,7 @@ function exportData() {
   );
   let a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "proofpilot-demo-data.json";
+  a.download = "truthlink-workspace.json";
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   toast("Demo records exported.");

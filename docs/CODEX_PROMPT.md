@@ -1,6 +1,6 @@
 # Codex lane: evidence verification + follow-ups
 
-Paste everything below the line into Codex (pointed at `mitchgold-maker/proofpilot`, branch `main`).
+Paste everything below the line into Codex (pointed at `mitchgold-maker/truthlink`, branch `main`).
 
 ---
 
