@@ -20,7 +20,8 @@ process.env.LLM_TOKEN_BUDGET = "700000";
 process.env.LLM_MAX_OUTPUT_TOKENS = "3000";
 
 const ROUNDS = Number(process.env.LAB_ROUNDS ?? 3);
-const CONCURRENCY = 8;
+const CONCURRENCY = 4;
+process.env.LLM_MAX_RETRIES = "8";
 
 const STRATEGIES = [
   {
@@ -55,6 +56,7 @@ type Err = {
   evidence: string;
 };
 type Score = {
+  apiErrors: number;
   accuracy: number;
   caseAccuracy: number;
   errors: Err[];
@@ -146,8 +148,11 @@ async function main() {
     const caseOk = results.filter((rs) =>
       rs.every((r) => r.got === r.c.truth[r.i]),
     ).length;
+    // API failures (rate limits) are excluded from accuracy and reported separately.
+    const apiErrors = errors.filter((e) => e.got === "error").length;
     return {
-      accuracy: 1 - errors.length / flat.length,
+      apiErrors,
+      accuracy: 1 - (errors.length - apiErrors) / Math.max(1, flat.length - apiErrors),
       caseAccuracy: caseOk / cases.length,
       errors,
       seconds: (Date.now() - t0) / 1000,
@@ -157,7 +162,7 @@ async function main() {
 
   const Proposal = z.object({
     prompt: z.string().min(200).max(6000),
-    rationale: z.string().min(10).max(600),
+    rationale: z.string().max(600).default(""),
   });
   const META = `You improve the system prompt of an AI that reviews engineering evidence against acceptance criteria and returns JSON {checks:[{criterion,met:"yes"|"no"|"unclear",reason}]} (one check per criterion, in order, criterion copied verbatim). Labels: "yes" = evidence proves it; "no" = readable evidence does not prove it (missing, contradicted, or only claimed); "unclear" = the relevant file could not be read. You are given your assigned approach, the current best prompt and its dev score, and real mistakes. Write a complete new system prompt (under 2500 characters) that fixes those mistakes using your approach. Do not include examples copied from the mistakes. Return {"prompt": "...", "rationale": "..."}.`;
 
@@ -258,10 +263,8 @@ async function main() {
   }
 
   console.log("Fresh held-out test (different seed and phrasing)…");
-  const [baseTest, bestTest] = await Promise.all([
-    evaluate(BASELINE, test),
-    evaluate(best.prompt, test),
-  ]);
+  const baseTest = await evaluate(BASELINE, test);
+  const bestTest = await evaluate(best.prompt, test);
   const result = {
     run_at: new Date().toISOString(),
     model: process.env.LLM_MODEL,
@@ -281,13 +284,15 @@ async function main() {
       baseline: {
         accuracy: baseTest.accuracy,
         caseAccuracy: baseTest.caseAccuracy,
+        apiErrors: baseTest.apiErrors,
       },
       improved: {
         accuracy: bestTest.accuracy,
         caseAccuracy: bestTest.caseAccuracy,
+        apiErrors: bestTest.apiErrors,
       },
-      baseline_errors: baseTest.errors.slice(0, 8),
-      improved_errors: bestTest.errors.slice(0, 8),
+      baseline_errors: baseTest.errors.filter((e) => e.got !== "error").slice(0, 8),
+      improved_errors: bestTest.errors.filter((e) => e.got !== "error").slice(0, 8),
     },
     usage,
   };

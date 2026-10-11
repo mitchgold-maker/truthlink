@@ -45,7 +45,7 @@ function checkBudget() {
 let client: OpenAI | null = null;
 function getClient() {
   if (!client) {
-    client = new OpenAI({ apiKey: process.env.LLM_API_KEY, baseURL: llmConfig.baseURL });
+    client = new OpenAI({ apiKey: process.env.LLM_API_KEY, baseURL: llmConfig.baseURL, maxRetries: Number(process.env.LLM_MAX_RETRIES ?? 4) });
   }
   return client;
 }
