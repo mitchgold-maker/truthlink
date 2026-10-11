@@ -174,7 +174,7 @@ const seed = {
       status: "pending_approval",
       type: "manager",
       criteria:
-        "Upright drawing and FEA summary required. Team lead confirms tolerances are manufacturable.",
+        "Upright drawing and Fusion design snapshot required. Upright mass must be 450 g or less, and the design must be saved to the cloud as a new version. Team lead confirms tolerances are manufacturable.",
       evidence: ["front-upright-drawing.pdf", "upright-fea-summary.pdf"],
       checked: true,
       required_evidence: ["drawing", "fea"],

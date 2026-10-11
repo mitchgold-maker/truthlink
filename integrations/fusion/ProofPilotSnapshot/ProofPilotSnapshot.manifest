@@ -1,0 +1,10 @@
+{
+  "autodeskProduct": "Fusion",
+  "type": "script",
+  "author": "ProofPilot",
+  "description": {
+    "": "Export measured design facts (mass, parameters, versions) as ProofPilot task evidence."
+  },
+  "supportedOS": "windows|mac",
+  "editEnabled": true
+}
