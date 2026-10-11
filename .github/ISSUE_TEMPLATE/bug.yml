@@ -1,0 +1,18 @@
+name: Bug
+description: Something in the demo path is broken
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Steps to reproduce, expected vs actual, which account (manager/employee).
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Blocks the demo?
+      options: ["Yes, blocks a demo step", "No, cosmetic or edge case"]
+    validations:
+      required: true
