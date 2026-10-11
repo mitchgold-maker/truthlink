@@ -1,23 +1,23 @@
-const KEY = "proofpilot-volunteer-demo-v2";
+const KEY = "proofpilot-racing-demo-v1";
 const seed = {
   people: [
     {
       id: "alex",
       name: "Alex Morgan",
-      role: "Event captain",
-      skills: ["Volunteer onboarding", "Event coordination"],
+      role: "Suspension lead",
+      skills: ["Suspension design", "Testing"],
       capacity: 8,
       pto: false,
       records: [
         {
-          title: "Welcome desk setup",
-          skills: ["Volunteer onboarding", "Event coordination"],
+          title: "Rear upright FEA review",
+          skills: ["Suspension design"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
         },
         {
-          title: "Orientation checklist",
-          skills: ["Volunteer onboarding"],
+          title: "Shock dyno test plan",
+          skills: ["Testing"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
         },
@@ -27,19 +27,19 @@ const seed = {
     {
       id: "jordan",
       name: "Jordan Lee",
-      role: "Volunteer team lead",
-      skills: ["Volunteer onboarding", "Event coordination", "CAD"],
+      role: "Chassis engineer",
+      skills: ["Suspension design", "Testing", "CAD"],
       capacity: 8,
       pto: false,
       records: [
         {
-          title: "Build-kit packing",
-          skills: ["Event coordination"],
+          title: "Front A-arm geometry check",
+          skills: ["Suspension design"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
         },
         {
-          title: "Kit bracket drawing",
+          title: "Steering rack mount drawing",
           skills: ["CAD"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
@@ -50,20 +50,20 @@ const seed = {
     {
       id: "sam",
       name: "Sam Rivera",
-      role: "Pantry shift lead",
-      skills: ["Food handling", "Inventory"],
+      role: "Powertrain lead",
+      skills: ["Powertrain", "Manufacturing"],
       capacity: 6,
       pto: false,
       records: [
         {
-          title: "Pantry stock count",
-          skills: ["Inventory"],
+          title: "Intake runner machining",
+          skills: ["Manufacturing"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
         },
         {
-          title: "Food sorting shift",
-          skills: ["Food handling"],
+          title: "Engine dyno log review",
+          skills: ["Powertrain"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
         },
@@ -73,20 +73,20 @@ const seed = {
     {
       id: "taylor",
       name: "Taylor Chen",
-      role: "Volunteer coordinator",
-      skills: ["Event coordination", "Outreach"],
+      role: "Team manager",
+      skills: ["Project management", "Sponsorship"],
       capacity: 8,
       pto: false,
       records: [
         {
-          title: "Mentor welcome email",
-          skills: ["Outreach"],
+          title: "Sponsor update deck",
+          skills: ["Sponsorship"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
         },
         {
-          title: "Build Day staffing plan",
-          skills: ["Event coordination"],
+          title: "Competition registration",
+          skills: ["Project management"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
         },
@@ -96,26 +96,26 @@ const seed = {
     {
       id: "riley",
       name: "Riley Patel",
-      role: "Experienced event volunteer",
-      skills: ["Volunteer onboarding", "Event coordination", "Outreach"],
+      role: "Senior suspension engineer",
+      skills: ["Suspension design", "Testing", "Sponsorship"],
       capacity: 4,
       pto: false,
       records: [
         {
-          title: "Check-in desk handoff",
-          skills: ["Volunteer onboarding"],
+          title: "Suspension kinematics sweep",
+          skills: ["Suspension design"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
         },
         {
-          title: "Volunteer orientation",
-          skills: ["Volunteer onboarding"],
+          title: "Bump-steer test",
+          skills: ["Suspension design", "Testing"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
         },
         {
-          title: "Event briefing",
-          skills: ["Volunteer onboarding", "Event coordination"],
+          title: "Design report: suspension section",
+          skills: ["Suspension design"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
         },
@@ -125,20 +125,20 @@ const seed = {
     {
       id: "casey",
       name: "Casey Brooks",
-      role: "Mentor program volunteer",
-      skills: ["Mentoring", "Outreach"],
+      role: "Electronics lead",
+      skills: ["Electronics", "Sponsorship"],
       capacity: 6,
       pto: false,
       records: [
         {
-          title: "New mentor onboarding",
-          skills: ["Mentoring"],
+          title: "Low-voltage harness layout",
+          skills: ["Electronics"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
         },
         {
-          title: "Student invitation email",
-          skills: ["Outreach"],
+          title: "Sponsor intro email",
+          skills: ["Sponsorship"],
           approved_at: "2026-10-05",
           source: "fictional_seed",
         },
@@ -149,187 +149,186 @@ const seed = {
   tasks: [
     {
       id: "t1",
-      title: "Prepare volunteer check-in handoff",
-      project: "Community Build Day",
+      title: "Prepare rear suspension design review packet",
+      project: "Chassis & Suspension",
       owner: "alex",
       due: "2026-10-16",
       hours: 3,
-      skills: ["Volunteer onboarding"],
+      skills: ["Suspension design"],
       status: "in_progress",
       type: "manager",
       criteria:
-        "Volunteer roster and venue map required. Coordinator confirms stations, access instructions, and escalation contact.",
-      evidence: ["volunteer-roster.csv"],
+        "Kinematics report and hardpoint drawing required. Team lead confirms load cases and safety factors.",
+      evidence: ["rear-kinematics-report.pdf"],
       checked: false,
-      required_evidence: ["roster", "map"],
+      required_evidence: ["kinematics", "drawing"],
     },
     {
       id: "t2",
-      title: "Finalize volunteer orientation pack",
-      project: "Community Build Day",
+      title: "Finalize front upright drawing package",
+      project: "Chassis & Suspension",
       owner: "jordan",
       due: "2026-10-16",
       hours: 1,
-      skills: ["Volunteer onboarding"],
+      skills: ["Suspension design"],
       status: "pending_approval",
       type: "manager",
       criteria:
-        "Orientation checklist and safety briefing required. Coordinator confirms the briefing is suitable for the event.",
-      evidence: ["orientation-checklist.pdf", "safety-briefing.pdf"],
+        "Upright drawing and FEA summary required. Team lead confirms tolerances are manufacturable.",
+      evidence: ["front-upright-drawing.pdf", "upright-fea-summary.pdf"],
       checked: true,
-      required_evidence: ["checklist", "briefing"],
+      required_evidence: ["drawing", "fea"],
     },
     {
       id: "t3",
-      title: "Plan food sorting stations",
-      project: "Food Pantry Drive",
+      title: "Plan intake manifold machining",
+      project: "Powertrain",
       owner: "sam",
       due: "2026-10-16",
       hours: 3,
-      skills: ["Food handling"],
+      skills: ["Manufacturing"],
       status: "in_progress",
       type: "manager",
       criteria:
-        "Station plan and food-handling checklist required. Coordinator reviews safety instructions.",
+        "CAM setup sheet and fixture plan required. Team lead reviews machine safety.",
       evidence: [],
       checked: false,
-      required_evidence: ["plan", "checklist"],
+      required_evidence: ["setup", "fixture"],
     },
     {
       id: "t4",
-      title: "Upload event flyer",
-      project: "Food Pantry Drive",
+      title: "Upload sponsor logo pack",
+      project: "Electronics & Operations",
       owner: "taylor",
       due: "2026-10-16",
       hours: 0.5,
-      skills: ["Outreach"],
+      skills: ["Sponsorship"],
       status: "todo",
       type: "exists",
       criteria:
-        "Upload one non-empty event flyer. This verifies file presence only.",
+        "Upload one non-empty logo pack. This verifies file presence only.",
       evidence: [],
       checked: false,
       required_evidence: [],
     },
     {
       id: "t5",
-      title: "Prepare event captain handoff",
-      project: "Community Build Day",
+      title: "Prepare suspension test-day handoff",
+      project: "Chassis & Suspension",
       owner: "riley",
       due: "2026-10-16",
       hours: 3,
-      skills: ["Volunteer onboarding"],
+      skills: ["Suspension design"],
       status: "in_progress",
       type: "manager",
-      criteria: "Briefing document, contact list, and coordinator approval.",
+      criteria: "Test plan and setup sheet. Team lead approval required.",
       evidence: [],
       checked: false,
-      required_evidence: ["briefing", "contact"],
+      required_evidence: ["plan", "setup"],
     },
     {
       id: "t6",
-      title: "Match first-year mentees",
-      project: "Mentor Program",
+      title: "Route low-voltage wiring harness",
+      project: "Electronics & Operations",
       owner: "casey",
       due: "2026-10-16",
       hours: 2,
-      skills: ["Mentoring"],
+      skills: ["Electronics"],
       status: "todo",
       type: "manager",
-      criteria:
-        "Proposed mentor pairs and rationale. Coordinator reviews each match.",
+      criteria: "Harness diagram and pinout. Team lead reviews each connector.",
       evidence: [],
       checked: false,
       required_evidence: [],
     },
     {
       id: "t7",
-      title: "Confirm pantry staffing roster",
-      project: "Food Pantry Drive",
+      title: "Confirm engine dyno schedule",
+      project: "Powertrain",
       owner: "taylor",
       due: "2026-10-16",
       hours: 1,
-      skills: ["Event coordination"],
+      skills: ["Project management"],
       status: "pending_approval",
       type: "manager",
       criteria:
-        "Roster must cover all event stations. Coordinator confirms assignments.",
-      evidence: ["pantry-roster.csv"],
+        "Schedule must cover every planned dyno run. Team lead confirms slots.",
+      evidence: ["dyno-schedule.csv"],
       checked: true,
-      required_evidence: ["roster"],
+      required_evidence: ["schedule"],
     },
     {
       id: "t8",
-      title: "Train welcome desk volunteers",
-      project: "Community Build Day",
+      title: "Run shock dyno baseline",
+      project: "Chassis & Suspension",
       owner: "alex",
       due: "2026-10-16",
       hours: 2,
-      skills: ["Volunteer onboarding"],
+      skills: ["Testing"],
       status: "todo",
       type: "manager",
       criteria:
-        "Orientation notes and attendee list. Coordinator verifies readiness.",
+        "Dyno data file and test notes. Team lead verifies the baseline is usable.",
       evidence: [],
       checked: false,
-      required_evidence: ["notes", "attendee"],
+      required_evidence: ["data", "notes"],
     },
     {
       id: "t9",
-      title: "Prepare build-kit inventory",
-      project: "Community Build Day",
+      title: "Release pedal box CAD",
+      project: "Chassis & Suspension",
       owner: "jordan",
       due: "2026-10-16",
       hours: 1,
-      skills: ["Event coordination"],
+      skills: ["CAD"],
       status: "completed",
       type: "manager",
-      criteria: "Coordinator-approved build-kit count.",
-      evidence: ["kit-inventory.csv"],
+      criteria: "Team-lead-approved pedal box model.",
+      evidence: ["pedal-box.step"],
       checked: true,
       required_evidence: [],
     },
     {
       id: "t10",
-      title: "Draft volunteer welcome email",
-      project: "Mentor Program",
+      title: "Draft sponsor thank-you email",
+      project: "Electronics & Operations",
       owner: "riley",
       due: "2026-10-16",
       hours: 2,
-      skills: ["Outreach"],
+      skills: ["Sponsorship"],
       status: "todo",
       type: "manager",
-      criteria: "Email draft with meeting location and next steps.",
+      criteria: "Email draft with car photos and next milestones.",
       evidence: [],
       checked: false,
       required_evidence: [],
     },
     {
       id: "t11",
-      title: "Reconcile pantry donations",
-      project: "Food Pantry Drive",
+      title: "Reconcile powertrain parts inventory",
+      project: "Powertrain",
       owner: "sam",
       due: "2026-10-16",
       hours: 2,
-      skills: ["Inventory"],
+      skills: ["Manufacturing"],
       status: "todo",
       type: "manager",
-      criteria: "Inventory report and discrepancy notes.",
+      criteria: "Inventory sheet and discrepancy notes.",
       evidence: [],
       checked: false,
       required_evidence: [],
     },
     {
       id: "t12",
-      title: "Prepare mentor kickoff agenda",
-      project: "Mentor Program",
+      title: "Prepare electronics design review agenda",
+      project: "Electronics & Operations",
       owner: "casey",
       due: "2026-10-16",
       hours: 1,
-      skills: ["Mentoring"],
+      skills: ["Electronics"],
       status: "blocked",
       type: "manager",
-      criteria: "Kickoff agenda; waiting for room confirmation.",
+      criteria: "Review agenda; waiting for faculty advisor availability.",
       evidence: [],
       checked: false,
       required_evidence: [],
@@ -337,16 +336,16 @@ const seed = {
   ],
   activity: [
     {
-      text: "Jordan submitted the orientation pack for coordinator review",
-      time: "Demo \u00b7 12 min ago",
+      text: "Jordan submitted the front upright drawing package for team lead review",
+      time: "Demo · 12 min ago",
     },
     {
-      text: "Alex added the volunteer roster; venue map is missing",
-      time: "Demo \u00b7 28 min ago",
+      text: "Alex uploaded the kinematics report; hardpoint drawing is missing",
+      time: "Demo · 28 min ago",
     },
     {
-      text: "Casey flagged room confirmation as a blocker",
-      time: "Demo \u00b7 1 hour ago",
+      text: "Casey flagged faculty advisor availability as a blocker",
+      time: "Demo · 1 hour ago",
     },
   ],
 };
@@ -363,7 +362,7 @@ let page = "overview",
 const names = {
   overview: "Overview",
   tasks: "Initiatives & tasks",
-  team: "Volunteers & capacity",
+  team: "Members & capacity",
   meetings: "Meeting notes",
   followups: "Follow-ups",
   integrations: "Integrations",
@@ -463,7 +462,7 @@ function overview() {
   return (
     heading(
       "Your command center",
-      "Keep your volunteers moving.",
+      "Keep the build on schedule.",
       "Less chasing. Clearer handoffs. A coordinator who stays in charge.",
       `<button onclick="go('meetings')">▧ Import meeting notes</button><button class="primary" onclick="newTask()">+ New task</button>`,
     ) +
@@ -472,11 +471,11 @@ function overview() {
       [
         "Active tasks",
         state.tasks.filter(active).length,
-        "Across 3 volunteer initiatives",
+        "Across 3 subsystems",
       ],
       ["Awaiting approval", pending.length, "Your judgment closes the loop"],
       [
-        "Volunteer capacity",
+        "Member capacity",
         capacityPercent(),
         "Estimated remaining hours / weekly capacity",
       ],
@@ -489,19 +488,19 @@ function overview() {
       .join(
         "",
       )}</div><div class="callout"><span class="icon">✧</span><div><h3>${risk.length ? "Capacity needs a closer look." : "Your next move is ready."}</h3><p>${esc(capacitySummary())}</p></div><button class="small" onclick="go('team')">Review capacity →</button></div><div class="grid"><section class="panel"><div class="panel-head"><h2>Initiatives in motion</h2><button class="small quiet" onclick="go('tasks')">View tasks →</button></div>${[
-      "Community Build Day",
-      "Food Pantry Drive",
-      "Mentor Program",
+      "Chassis & Suspension",
+      "Powertrain",
+      "Electronics & Operations",
     ]
       .map((p, i) => {
         let ts = state.tasks.filter((t) => t.project === p),
           complete = ts.filter((t) => !active(t)).length,
           percent = ts.length ? Math.round((100 * complete) / ts.length) : 0;
-        return `<div class="project"><div class="project-top"><h3>${p}</h3><span class="tag ${ts.some(atRisk) ? "amber" : "gray"}">${ts.some(atRisk) ? "Needs attention" : "Active"}</span></div><p>${["Hands-on engineering outreach, led by volunteers", "Sorting, stocking, and helping neighbors", "Mentorship and support for new students"][i]}</p><div class="bar"><span style="width:${percent}%"></span></div><div class="project-foot"><span>${complete} / ${ts.length} tasks approved</span><span>${percent}% complete</span></div></div>`;
+        return `<div class="project"><div class="project-top"><h3>${p}</h3><span class="tag ${ts.some(atRisk) ? "amber" : "gray"}">${ts.some(atRisk) ? "Needs attention" : "Active"}</span></div><p>${["Frame, suspension and steering for competition", "Engine, intake and drivetrain", "Wiring, sponsors and logistics"][i]}</p><div class="bar"><span style="width:${percent}%"></span></div><div class="project-foot"><span>${complete} / ${ts.length} tasks approved</span><span>${percent}% complete</span></div></div>`;
       })
       .join(
         "",
-      )}</section><section class="panel"><div class="panel-head"><h2>Ready for your review</h2><span class="tag amber">${pending.length}</span></div>${pending.length ? pending.map((t) => `<div class="review"><div class="eyebrow">${esc(t.project)}</div><h3 style="margin-top:9px">${esc(t.title)}</h3><p>${esc(person(t.owner).name)} · Evidence checklist reviewed</p><button class="small" onclick="review('${t.id}')">Review deliverables →</button></div>`).join("") : '<div class="empty">All caught up. No pending reviews.</div>'}</section></div><div class="grid section-gap"><section class="panel"><div class="panel-head"><h2>Volunteer commitments</h2><button class="small quiet" onclick="go('team')">Explore volunteers →</button></div><div class="table-wrap"><table><thead><tr><th>Volunteer</th><th>Remaining work</th><th>Capacity</th></tr></thead><tbody>${state.people
+      )}</section><section class="panel"><div class="panel-head"><h2>Ready for your review</h2><span class="tag amber">${pending.length}</span></div>${pending.length ? pending.map((t) => `<div class="review"><div class="eyebrow">${esc(t.project)}</div><h3 style="margin-top:9px">${esc(t.title)}</h3><p>${esc(person(t.owner).name)} · Evidence checklist reviewed</p><button class="small" onclick="review('${t.id}')">Review deliverables →</button></div>`).join("") : '<div class="empty">All caught up. No pending reviews.</div>'}</section></div><div class="grid section-gap"><section class="panel"><div class="panel-head"><h2>Member commitments</h2><button class="small quiet" onclick="go('team')">Explore volunteers →</button></div><div class="table-wrap"><table><thead><tr><th>Member</th><th>Remaining work</th><th>Capacity</th></tr></thead><tbody>${state.people
       .slice(0, 4)
       .map(
         (p) =>
@@ -551,7 +550,7 @@ function teamPage() {
   return (
     heading(
       "People behind the mission",
-      "Volunteers & capacity",
+      "Members & capacity",
       "Match demonstrated experience with the availability to help.",
       `<button onclick="recommend('t1')">Try replacement demo →</button>`,
     ) +
@@ -574,13 +573,13 @@ function togglePTO(id) {
   toast(
     p.pto
       ? "Time off recorded. Review coverage for their active tasks."
-      : "Volunteer available again.",
+      : "Member available again.",
   );
 }
 function profile(id) {
   let p = person(id);
   show(
-    `<h2>${p.name}</h2><p>${p.role}</p><div class="evidence">${p.history} approved tasks · Declared skills: ${p.skills.join(", ")}<br>Approval records below show demonstrated task experience. Declared skills alone do not certify a volunteer.</div><h3>Approved experience</h3>${(p.records || []).map((r) => `<div class="draft"><strong>${esc(r.title)}</strong><p>${esc(r.skills.join(" · "))} · Approved ${esc(r.approved_at)} · ${r.source === "fictional_seed" ? "Fictional seed record" : "Demo approval"}</p></div>`).join("")}<h3>Tasks in this workspace</h3>${state.tasks
+    `<h2>${p.name}</h2><p>${p.role}</p><div class="evidence">${p.history} approved tasks · Declared skills: ${p.skills.join(", ")}<br>Approval records below show demonstrated task experience. Declared skills alone do not certify a member.</div><h3>Approved experience</h3>${(p.records || []).map((r) => `<div class="draft"><strong>${esc(r.title)}</strong><p>${esc(r.skills.join(" · "))} · Approved ${esc(r.approved_at)} · ${r.source === "fictional_seed" ? "Fictional seed record" : "Demo approval"}</p></div>`).join("")}<h3>Tasks in this workspace</h3>${state.tasks
       .filter((t) => t.owner === id)
       .map(
         (t) =>
@@ -817,7 +816,7 @@ function approve(id) {
 }
 function newTask() {
   show(
-    `<h2>Create a task</h2><label>Title</label><input id="newTitle" placeholder="What needs to get done?"><label>Owner</label><select id="newOwner">${state.people.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select><label>Initiative</label><select id="newProject">${["Community Build Day", "Food Pantry Drive", "Mentor Program"].map((p) => `<option>${p}</option>`).join("")}</select><label>Due date</label><input id="newDue" type="date" value="2026-10-16"><label>Estimated remaining hours</label><input id="newHours" type="number" min="0.5" step="0.5" value="4"><label>Required skills (comma separated)</label><input id="newSkills" placeholder="Volunteer onboarding, Event coordination"><label>Acceptance criteria</label><input id="newCriteria" placeholder="Required deliverables and checks">`,
+    `<h2>Create a task</h2><label>Title</label><input id="newTitle" placeholder="What needs to get done?"><label>Owner</label><select id="newOwner">${state.people.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</select><label>Initiative</label><select id="newProject">${["Chassis & Suspension", "Powertrain", "Electronics & Operations"].map((p) => `<option>${p}</option>`).join("")}</select><label>Due date</label><input id="newDue" type="date" value="2026-10-16"><label>Estimated remaining hours</label><input id="newHours" type="number" min="0.5" step="0.5" value="4"><label>Required skills (comma separated)</label><input id="newSkills" placeholder="Suspension design, CAD"><label>Acceptance criteria</label><input id="newCriteria" placeholder="Required deliverables and checks">`,
     `<button class="primary" onclick="createTask()">Create task</button>`,
   );
 }
@@ -853,7 +852,7 @@ function createTask() {
   toast("Task created.");
 }
 const sampleNotes =
-  "Alex will finalize the volunteer check-in handoff by 2026-10-14. Jordan will prepare the safety briefing by 2026-10-16. Sam will confirm food sorting stations by 2026-10-15. Taylor will contact the new volunteers.";
+  "Design review recap. Alex will finish the rear suspension kinematics report by 2026-10-14. Jordan will update the front upright drawing after review comments by 2026-10-16. Sam needs to order intake manifold stock this week and send the CAM setup sheet. Casey will check the harness pinout with the faculty advisor. We still need someone to book the skidpad for test day.";
 function meetingsPage() {
   return (
     heading(
@@ -861,7 +860,7 @@ function meetingsPage() {
       "Meeting notes",
       "Capture the decisions. Review the assignments. Keep moving.",
     ) +
-    `<div class="grid"><section class="panel"><div class="panel-head"><h2>Import your notes</h2><span class="tag gray">AI extraction</span></div><div class="panel-body"><label style="display:block;font-size:12px;margin-bottom:8px">Initiative</label><select id="meetingProject" style="width:100%;margin-bottom:18px"><option>Community Build Day</option><option>Food Pantry Drive</option><option>Mentor Program</option></select><label for="notes" style="font-size:12px;display:block;margin-bottom:10px">Paste meeting notes</label><textarea id="notes" placeholder="Alex will prepare the volunteer roster by 2026-10-14…">${sampleNotes}</textarea><div class="actions" style="margin-top:14px"><button class="primary" onclick="extract()">✧ Extract draft tasks</button><label class="small" style="cursor:pointer">Upload .txt <input type="file" accept=".txt" style="display:none" onchange="readNotes(this)"></label></div><p class="hint">An LLM drafts tasks, owners, dates and acceptance criteria; nothing is assigned until you approve. Falls back to a local parser if AI is unavailable.</p></div></section><section class="panel"><div class="panel-head"><h2>Your review matters</h2></div><div class="panel-body"><h3>01 &nbsp; Capture</h3><p>Bring in notes from your meeting.</p><h3 style="margin-top:24px">02 &nbsp; Confirm</h3><p>Check the task, owner, deadline, and effort. Ambiguous assignments need your judgment.</p><h3 style="margin-top:24px">03 &nbsp; Assign</h3><p>Only approved drafts enter the work ledger and update team capacity.</p></div></section></div><section id="draftArea" class="section-gap"></section>`
+    `<div class="grid"><section class="panel"><div class="panel-head"><h2>Import your notes</h2><span class="tag gray">AI extraction</span></div><div class="panel-body"><label style="display:block;font-size:12px;margin-bottom:8px">Initiative</label><select id="meetingProject" style="width:100%;margin-bottom:18px"><option>Chassis &amp; Suspension</option><option>Powertrain</option><option>Electronics &amp; Operations</option></select><label for="notes" style="font-size:12px;display:block;margin-bottom:10px">Paste meeting notes</label><textarea id="notes" placeholder="Alex will finish the kinematics report by 2026-10-14…">${sampleNotes}</textarea><div class="actions" style="margin-top:14px"><button class="primary" onclick="extract()">✧ Extract draft tasks</button><label class="small" style="cursor:pointer">Upload .txt <input type="file" accept=".txt" style="display:none" onchange="readNotes(this)"></label></div><p class="hint">An LLM drafts tasks, owners, dates and acceptance criteria; nothing is assigned until you approve. Falls back to a local parser if AI is unavailable.</p></div></section><section class="panel"><div class="panel-head"><h2>Your review matters</h2></div><div class="panel-body"><h3>01 &nbsp; Capture</h3><p>Bring in notes from your meeting.</p><h3 style="margin-top:24px">02 &nbsp; Confirm</h3><p>Check the task, owner, deadline, and effort. Ambiguous assignments need your judgment.</p><h3 style="margin-top:24px">03 &nbsp; Assign</h3><p>Only approved drafts enter the work ledger and update team capacity.</p></div></section></div><section id="draftArea" class="section-gap"></section>`
   );
 }
 function readNotes(input) {
@@ -981,7 +980,7 @@ function importDrafts() {
   );
   log(`Coordinator approved ${selected.length} meeting-note tasks`);
   go("tasks");
-  toast("Approved tasks added. Volunteer commitments updated.");
+  toast("Approved tasks added. Member commitments updated.");
 }
 function followupsPage() {
   let ts = state.tasks.filter(
@@ -1101,7 +1100,7 @@ function integrationsPage() {
     `<div class="integration-grid">${[
       [
         "Bloomerang",
-        "Future connection for volunteer profiles, shifts, and activity. No Bloomerang account or API is connected in this demo.",
+        "Future connection for donor and sponsor records. No Bloomerang account or API is connected in this demo.",
       ],
       [
         "Slack",
@@ -1190,7 +1189,7 @@ function capacitySummary() {
   if (p)
     return (
       p.name +
-      " is unavailable. Review their active commitments and find a qualified volunteer for coverage."
+      " is unavailable. Review their active commitments and find a qualified teammate for coverage."
     );
   const overloaded = state.people.find((p) => load(p.id) > p.capacity);
   if (overloaded)
@@ -1232,18 +1231,20 @@ function recordCompletion(t) {
   }
 }
 function inferSkills(title) {
-  return /orientation|briefing|check-in|onboarding/i.test(title)
-    ? ["Volunteer onboarding"]
-    : /food|sorting/i.test(title)
-      ? ["Food handling"]
-      : /mentor/i.test(title)
-        ? ["Mentoring"]
-        : /email|contact|outreach/i.test(title)
-          ? ["Outreach"]
-          : ["Event coordination"];
+  return /suspension|upright|kinematic|a-arm|steering/i.test(title)
+    ? ["Suspension design"]
+    : /dyno|test/i.test(title)
+      ? ["Testing"]
+      : /intake|engine|machin|manifold/i.test(title)
+        ? ["Manufacturing"]
+        : /harness|wiring|pinout|electr/i.test(title)
+          ? ["Electronics"]
+          : /sponsor|email/i.test(title)
+            ? ["Sponsorship"]
+            : ["Project management"];
 }
 function demoGuide() {
-  return `<section class="demo-guide"><div class="row"><div><span class="eyebrow">Bloomerang challenge · Guided demo</span><h3 style="margin:8px 0 0">From meeting notes to a confident handoff.</h3></div><button class="small quiet" onclick="go('integrations')">Demo controls</button></div><div class="demo-steps"><button onclick="go('meetings')"><b>01</b><span>Capture commitments<small>Review tasks from meeting notes</small></span></button><button onclick="review('t2')"><b>02</b><span>Approve real deliverables<small>Grow Jordan's onboarding experience</small></span></button><button onclick="go('team')"><b>03</b><span>Handle time off<small>Mark Alex unavailable</small></span></button><button onclick="recommend('t1')"><b>04</b><span>Find the right coverage<small>Compare skills, history, and capacity</small></span></button></div></section>`;
+  return `<section class="demo-guide"><div class="row"><div><span class="eyebrow">Racing team pilot · Guided demo</span><h3 style="margin:8px 0 0">From meeting notes to a confident handoff.</h3></div><button class="small quiet" onclick="go('integrations')">Demo controls</button></div><div class="demo-steps"><button onclick="go('meetings')"><b>01</b><span>Capture commitments<small>Review tasks from meeting notes</small></span></button><button onclick="review('t2')"><b>02</b><span>Approve real deliverables<small>Grow Jordan's onboarding experience</small></span></button><button onclick="go('team')"><b>03</b><span>Handle time off<small>Mark Alex unavailable</small></span></button><button onclick="recommend('t1')"><b>04</b><span>Find the right coverage<small>Compare skills, history, and capacity</small></span></button></div></section>`;
 }
 function setProgress(id, value) {
   if (!value) return;
