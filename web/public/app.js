@@ -427,6 +427,7 @@ function save() {
     if (previous !== signature) t.updated_at = new Date().toISOString();
     taskChanges.set(t.id, signature);
   }
+  scheduleSync();
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
   } catch {
@@ -1491,4 +1492,66 @@ function ownershipMap() {
     }).join("");
   }).join("") + '</tbody></table></div><div class="panel-body"><p class="hint">Backups use the same deterministic skill, experience and capacity ranking as replacements. Suggestions require team-lead approval; no assignments change.</p></div></section>';
 }
+let syncTimer, syncInFlight = false, syncDirty = false, stateReady = false, localRevision = 0;
+let syncStatus = "Offline · saved on this device";
+function syncBadge(text) {
+  syncStatus = text;
+  const tag = document.getElementById("syncStatus");
+  if (tag) tag.textContent = text;
+}
+async function apiJson(url, options = {}, timeoutMs = 12000) {
+  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {...options,signal:controller.signal});
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || "Request failed (" + res.status + ")");
+    return json;
+  } finally { clearTimeout(timer); }
+}
+function workspacePayload() {
+  return JSON.parse(JSON.stringify({people:state.people,tasks:state.tasks,decisions:state.decisions || [],activity:state.activity || []}, (key,value) => ["verifying","drafting"].includes(key) ? undefined : value));
+}
+function baselineTasks() {
+  taskChanges.clear();
+  state.tasks.forEach(t => { t.updated_at ||= "2026-10-10T09:00:00"; delete t.verifying; delete t.drafting; taskChanges.set(t.id,JSON.stringify([t.status,t.owner,t.evidence,t.evidenceDocs])); });
+}
+function scheduleSync() {
+  localRevision++; syncDirty = true;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(flushSharedState,800);
+}
+async function flushSharedState() {
+  if (!stateReady || syncInFlight || !syncDirty) return;
+  syncInFlight = true; syncDirty = false;
+  const revision = localRevision;
+  try {
+    await apiJson("/api/state?workspace=demo-racing-team",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(workspacePayload())});
+    syncBadge(revision === localRevision ? "Synced · MongoDB Atlas" : "Saving changes…");
+  } catch (e) {
+    syncDirty = true; syncBadge("Offline · saved on this device");
+    toast("Shared sync failed: " + e.message + ". Kept device records.");
+  } finally {
+    syncInFlight = false;
+    if (localRevision !== revision) { clearTimeout(syncTimer); syncTimer = setTimeout(flushSharedState,800); }
+  }
+}
+async function loadSharedState() {
+  const revision = localRevision;
+  try {
+    const json = await apiJson("/api/state?workspace=demo-racing-team");
+    if (json.state !== null && !["people","tasks","decisions","activity"].every(key => Array.isArray(json.state?.[key]))) throw new Error("Invalid workspace response");
+    if (revision === localRevision) {
+      state = json.state === null ? structuredClone(seed) : json.state;
+      baselineTasks(); localStorage.setItem(KEY,JSON.stringify(state)); render();
+    }
+    stateReady = true;
+    if (json.state === null || revision !== localRevision) { syncDirty = true; await flushSharedState(); }
+    else { syncDirty = false; syncBadge("Synced · MongoDB Atlas"); }
+  } catch (e) {
+    stateReady = true; syncBadge("Offline · saved on this device");
+    toast("Shared workspace unavailable: " + e.message + ". Using device records.");
+  }
+}
 render();
+
+loadSharedState();
