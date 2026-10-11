@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
       { source: "/", destination: "/index.html", permanent: false },
       { source: "/lab", destination: "/lab/index.html", permanent: false },
       { source: "/memory", destination: "/memory/index.html", permanent: false },
+      { source: "/demo", destination: "/demo/index.html", permanent: false },
     ];
   },
 };

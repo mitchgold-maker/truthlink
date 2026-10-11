@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TruthLink — Live Demo</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      :root { --green: #276d55; --ink: #1f2d28; --muted: #66746d; --line: #e3e8e2; --bg: #f7f8f4; --red: #b4413a; --amber: #a86b12; --blue: #2f5f8f; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; color: var(--ink); background: var(--bg); }
+      main { max-width: 920px; margin: 0 auto; padding: 20px 16px 80px; }
+      header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      header img { height: 46px; margin: -6px -10px; }
+      h1 { font-size: 26px; margin: 14px 0 2px; }
+      .sub { color: var(--muted); margin: 0 0 16px; }
+      .step { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; opacity: .45; transition: opacity .2s; }
+      .step.active, .step.done { opacity: 1; }
+      .step.active { border-color: var(--green); box-shadow: 0 0 0 3px #e7f1ec; }
+      .step h2 { font-size: 16px; margin: 0 0 4px; display: flex; gap: 10px; align-items: center; }
+      .num { width: 26px; height: 26px; border-radius: 50%; background: #eef1ec; display: inline-grid; place-items: center; font-size: 13px; font-weight: 700; flex: none; }
+      .done .num { background: var(--green); color: #fff; }
+      .tag { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: #e7f1ec; color: var(--green); font-weight: 600; }
+      .tag.sim { background: #fbf1e1; color: var(--amber); }
+      .tag.red { background: #f8e6e4; color: var(--red); }
+      .tag.blue { background: #e6eef6; color: var(--blue); }
+      .tag.gray { background: #eef1ec; color: var(--muted); }
+      button { padding: 9px 16px; border-radius: 10px; border: 0; background: var(--green); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+      button.ghost { background: #eef1ec; color: var(--ink); }
+      button:disabled { opacity: .5; cursor: wait; }
+      input { padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; font: inherit; width: 100%; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; }
+      .out { margin-top: 10px; font-size: 14px; }
+      .card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0; background: #fbfcfa; }
+      .slack { border-left: 4px solid #611f69; background: #fbf8fc; }
+      .slack b { color: #611f69; }
+      pre { white-space: pre-wrap; margin: 6px 0 0; font: 13px/1.5 ui-monospace, Consolas, monospace; background: #f3f5f1; padding: 10px; border-radius: 8px; max-height: 220px; overflow: auto; }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+      .verdict { font-size: 20px; font-weight: 800; }
+      .toggle { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; }
+      a { color: var(--green); }
+      .table-wrap { overflow-x: auto; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header><img src="/truthlink-logo.png" alt="TruthLink" /><span><a href="/">Open the app →</a></span></header>
+      <h1>From meeting to verified work, end to end</h1>
+      <p class="sub">A guided run of TruthLink. Every step calls the real product: Luminal AI, the TruthLink verifier, Slack when it's connected. Anything simulated is tagged <span class="tag sim">Simulated</span>. Time skips are labelled.</p>
+      <div class="row" style="margin:0 0 14px"><span id="slackStatus" class="tag gray">Checking Slack…</span><span id="aiStatus" class="tag gray">Checking AI…</span><button class="ghost" onclick="resetDemo()">Restart demo</button></div>
+      <div id="steps"></div>
+    </main>
+    <script>
+      const $ = (s, el = document) => el.querySelector(s);
+      const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+      const today = new Date().toISOString().slice(0, 10);
+      const ctx = { account: null, minutes: "", minutesSource: "", tasks: [], task: null, snapshot: null, snapshotSource: "", verify: null, outOfOffice: true, replacement: null, slackLive: false };
+
+      const team = () => [
+        { id: "you", name: ctx.account?.name || "Jordan Lee", role: "Chassis engineer (you)", skills: ["Suspension design", "CAD"], capacity: 8, assigned: 1, approved: { "Suspension design": 1, CAD: 1 } },
+        { id: "alex", name: "Alex Morgan", role: "Suspension lead", skills: ["Suspension design", "Testing", "CAD"], capacity: 8, assigned: 3, approved: { "Suspension design": 2, Testing: 1 } },
+        { id: "riley", name: "Riley Patel", role: "Senior suspension engineer", skills: ["Suspension design", "Testing"], capacity: 4, assigned: 5, approved: { "Suspension design": 3 } },
+        { id: "sam", name: "Sam Rivera", role: "Powertrain lead", skills: ["Powertrain", "Manufacturing"], capacity: 6, assigned: 2, approved: { Manufacturing: 1 } },
+        { id: "casey", name: "Casey Brooks", role: "Electronics lead", skills: ["Electronics"], capacity: 6, assigned: 2, approved: { Electronics: 1 } },
+      ];
+      const first = () => (ctx.account?.name || "Jordan").split(" ")[0];
+      const sampleMinutes = () => `Design review minutes (Oct 11)\nAttendees: ${first()}, Alex, Riley, Sam, Casey\n- ${first()} will finish the front upright drawing package and get the upright under 450 g by ${today}. Save the Fusion model as a new version.\n- Alex will run the shock dyno baseline by Friday.\n- Sam needs to order intake manifold stock this week.\n- Casey will check the harness pinout with the faculty advisor.\n- Still need someone to book the skidpad for test day.`;
+
+      const STEPS = [
+        { title: "Create your account", run: stepAccount },
+        { title: "Pull meeting minutes from Slack", run: stepSlackPull },
+        { title: "Turn the minutes into tasks (AI)", run: stepExtract },
+        { title: "Send your task to you on Slack", run: stepSlackSend },
+        { title: "Check the part in Autodesk Fusion", run: stepFusion },
+        { title: "Decide whether it's done", run: stepVerify },
+        { title: "Are you in the office?", run: stepOffice },
+        { title: "Pick who continues the work", run: stepReassign },
+        { title: "Ask for an update later", run: stepFollowup },
+      ];
+      let current = 0;
+
+      function render() {
+        $("#steps").innerHTML = STEPS.map((s, i) => `<section class="step ${i < current ? "done" : i === current ? "active" : ""}" id="s${i}"><h2><span class="num">${i < current ? "✓" : i + 1}</span>${esc(s.title)}</h2><div class="body"></div><div class="out"></div></section>`).join("");
+        for (let i = 0; i <= Math.min(current, STEPS.length - 1); i++) STEPS[i].run($(`#s${i}`), i < current);
+        if (current >= STEPS.length) $("#steps").insertAdjacentHTML("beforeend", `<section class="step done"><h2><span class="num">★</span>Done: meeting → owned task → measured check → coverage → follow-up</h2><p class="sub" style="margin:0">That loop normally takes a week of status meetings. <a href="/">Open the full app</a> to see insights, decisions and handoff packs.</p></section>`);
+        $(`#s${current}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      function next() { current++; render(); }
+      function body(el, html) { $(".body", el).innerHTML = html; }
+      function out(el, html) { $(".out", el).innerHTML = html; }
+      function nextBtn(el, done, label = "Next step →") { if (!done) out(el, $(".out", el).innerHTML + `<div class="row"><button onclick="next()">${label}</button></div>`); }
+      async function api(path, opts) { const r = await fetch(path, opts); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.status); return j; }
+      const post = (path, data) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      function busy(el, text) { out(el, `<p class="sub" data-busy>${esc(text)} <span class="t">0</span> s</p>`); const s = Date.now(); const t = setInterval(() => { const n = $("[data-busy] .t", el); n ? (n.textContent = Math.round((Date.now() - s) / 1000)) : clearInterval(t); }, 500); return () => clearInterval(t); }
+
+      function stepAccount(el, done) {
+        if (done) return body(el, `<p class="sub" style="margin:0">Signed in as <b>${esc(ctx.account.name)}</b> · ${esc(ctx.account.team)} <span class="tag sim">Demo account · stored in this browser</span></p>`);
+        body(el, `<p class="sub" style="margin:0">Sign up your team. TruthLink sets up a workspace with your members, subsystems and integrations.</p>
+          <div class="grid"><input id="accName" placeholder="Your name" value="${esc(ctx.account?.name || "")}"><input id="accEmail" placeholder="Work email" type="email"><input id="accTeam" placeholder="Team or company" value="Demo Racing Team"></div>
+          <div class="row"><button id="accGo">Create account</button></div>`);
+        $("#accGo", el).onclick = () => {
+          const name = $("#accName", el).value.trim() || "Jordan Lee";
+          ctx.account = { name, email: $("#accEmail", el).value.trim(), team: $("#accTeam", el).value.trim() || "Demo Racing Team" };
+          try { localStorage.setItem("truthlink-demo-account", JSON.stringify(ctx.account)); } catch {}
+          next();
+        };
+      }
+
+      async function stepSlackPull(el, done) {
+        if (done) return body(el, `<span class="tag ${ctx.minutesSource === "slack" ? "" : "sim"}">${ctx.minutesSource === "slack" ? "Live from Slack" : "Simulated Slack import"}</span><pre>${esc(ctx.minutes)}</pre>`);
+        body(el, `<p class="sub" style="margin:0">TruthLink reads the latest meeting minutes posted in your team's Slack channel.</p>`);
+        const stop = busy(el, "Reading the #design-review channel…");
+        try {
+          const j = await post("/api/slack", { action: "history" });
+          ctx.minutes = j.text; ctx.minutesSource = "slack";
+        } catch {
+          ctx.minutes = sampleMinutes(); ctx.minutesSource = "simulated";
+        }
+        stop();
+        out(el, `<span class="tag ${ctx.minutesSource === "slack" ? "" : "sim"}">${ctx.minutesSource === "slack" ? "Live from Slack" : "Simulated Slack import: connect a Slack bot to make this live"}</span><pre>${esc(ctx.minutes)}</pre>`);
+        nextBtn(el, false);
+      }
+
+      async function stepExtract(el, done) {
+        const table = () => `<div class="table-wrap"><table><tr><th>Task</th><th>Owner</th><th>Due</th><th>Check</th></tr>${ctx.tasks.map((t) => `<tr${t === ctx.task ? ' style="background:#f1f8f4"' : ""}><td>${esc(t.title)}<br><span class="sub" style="font-size:12px">“${esc(t.source_quote)}”</span></td><td>${esc(team().find((p) => p.id === t.suggested_owner_id)?.name || "Unassigned")}</td><td>${esc(t.due_date || "—")}</td><td><span class="tag ${t.verification_type === "complex" ? "blue" : "gray"}">${t.verification_type === "complex" ? "Team lead approval" : "File check"}</span></td></tr>`).join("")}</table></div>`;
+        if (done) return body(el, `<span class="tag">AI · Luminal Cloud</span>${table()}`);
+        body(el, `<p class="sub" style="margin:0">Luminal AI drafts tasks with owners, deadlines, acceptance criteria and the exact source quote. Nobody named → left unassigned, not guessed.</p>`);
+        const stop = busy(el, "Reading the minutes with Luminal…");
+        try {
+          const j = await post("/api/extract", { notes: ctx.minutes, project: "Chassis & Suspension", today, people: team().map(({ id, name, skills }) => ({ id, name, skills })) });
+          ctx.tasks = j.tasks;
+          ctx.task = j.tasks.find((t) => /upright/i.test(t.title)) || j.tasks.find((t) => t.suggested_owner_id === "you") || j.tasks[0];
+          ctx.task.suggested_owner_id ||= "you";
+          stop();
+          out(el, `<span class="tag">AI · ${esc(j.provider)} · ${esc(j.model)} · ${(j.latencyMs / 1000).toFixed(1)} s</span>${table()}<p class="sub">Highlighted: the task we'll follow through the rest of the demo.</p>`);
+          nextBtn(el, false);
+        } catch (e) {
+          stop();
+          out(el, `<span class="tag red">AI error: ${esc(e.message)}</span><div class="row"><button onclick="render()">Retry</button></div>`);
+        }
+      }
+
+      async function stepSlackSend(el, done) {
+        const owner = team().find((p) => p.id === ctx.task.suggested_owner_id);
+        const msg = `:clipboard: *New task from TruthLink* for ${owner.name}\n*${ctx.task.title}*\nDue: ${ctx.task.due_date || "not set"}\nDone means: ${(ctx.task.acceptance_criteria || []).join("; ") || ctx.task.deliverable}\nFrom the minutes: “${ctx.task.source_quote}”`;
+        const card = (live) => `<span class="tag ${live ? "" : "sim"}">${live ? "Sent to Slack" : "Simulated Slack message: connect Slack to send for real"}</span><div class="card slack"><b>TruthLink</b> <span class="sub" style="font-size:12px">APP</span><pre style="background:none;padding:4px 0 0">${esc(msg.replace(/\*/g, ""))}</pre></div>`;
+        if (done) return body(el, card(ctx.slackLive));
+        const stop = busy(el, "Posting to Slack…");
+        try { await post("/api/slack", { action: "send", text: msg }); ctx.slackLive = true; } catch { ctx.slackLive = false; }
+        stop();
+        out(el, card(ctx.slackLive));
+        nextBtn(el, false);
+      }
+
+      async function stepFusion(el, done) {
+        const s = () => ctx.snapshot;
+        const view = () => `<span class="tag ${ctx.snapshotSource === "live" ? "" : "sim"}">${ctx.snapshotSource === "live" ? "Live from the Fusion add-in" : "Demo snapshot from the TruthLink Fusion add-in"}</span>
+          <div class="grid"><div class="card"><div class="sub" style="margin:0">Design</div><b>${esc(s().document)}</b></div><div class="card"><div class="sub" style="margin:0">Measured mass</div><b>${s().mass_g} g</b></div><div class="card"><div class="sub" style="margin:0">Latest version</div><b>v${s().current_version}</b> · ${esc((s().version_history || []).slice(-1)[0]?.saved_by || "")}</div><div class="card"><div class="sub" style="margin:0">Bodies</div><b>${s().body_count}</b> · ${esc([...new Set((s().bodies || []).map((b) => b.material))].join(", "))}</div></div>`;
+        if (done) return body(el, view());
+        body(el, `<p class="sub" style="margin:0">The TruthLink add-in runs inside Fusion on the engineer's machine and reports measured facts on every save: mass, parameters, features, version history.</p>`);
+        const stop = busy(el, "Asking Fusion for the latest save of “Front Upright”…");
+        try { const j = await api("/api/fusion/snapshot?document=" + encodeURIComponent("Front Upright")); ctx.snapshot = j.latest; ctx.snapshotSource = "live"; }
+        catch {
+          ctx.snapshot = await api("/demo/front-upright.truthlink.json"); ctx.snapshotSource = "demo";
+          (ctx.snapshot.version_history || []).forEach((v) => (v.saved_by = team()[0].name));
+        }
+        stop();
+        out(el, view());
+        nextBtn(el, false);
+      }
+
+      async function stepVerify(el, done) {
+        const criteria = `Upright mass must be 450 g or less, and the design must be saved to the cloud as a new version. Includes a "Brake Caliper Mount". Team lead confirms tolerances are manufacturable.`;
+        const view = () => {
+          const v = ctx.verify, notDone = v.verdict !== "pass";
+          const badge = (c) => c.method === "measured" ? `<span class="tag">Measured</span>` : c.method === "human" ? `<span class="tag gray">Needs team lead</span>` : `<span class="tag blue">AI</span>`;
+          return `<div class="row" style="margin:0 0 6px"><span class="verdict" style="color:${notDone ? "var(--red)" : "var(--green)"}">${notDone ? "Not done yet" : "Ready for team-lead approval"}</span><span class="tag gray">${v.ruleChecks} measured · ${v.aiChecks} AI · ${esc(v.provider)}</span></div>
+            <div class="table-wrap"><table><tr><th>Criterion</th><th>How</th><th>Result</th></tr>${v.checks.map((c) => `<tr><td>${esc(c.criterion)}</td><td>${badge(c)}</td><td><b style="color:${c.met === "yes" ? "var(--green)" : c.met === "no" ? "var(--red)" : "var(--muted)"}">${c.met}</b> · ${esc(c.reason)}</td></tr>`).join("")}</table></div>
+            <p class="sub">AI never marks engineering work complete. A pass only sends it to the team lead.</p>`;
+        };
+        if (done) return body(el, view());
+        body(el, `<p class="sub" style="margin:0">Cheapest proof first: measurable criteria are checked against the Fusion numbers (zero AI tokens), judgment calls go to a person, and only the rest goes to the AI.</p>`);
+        const stop = busy(el, "Verifying against the acceptance criteria…");
+        try {
+          const v = await post("/api/verify", { title: ctx.task.title, criteria, verification_type: "complex", since: today + "T00:00:00", evidence: [{ name: "front-upright.truthlink.json", size: 900, type: "application/json", text: JSON.stringify(ctx.snapshot) }] });
+          ctx.verify = v; stop(); out(el, view()); nextBtn(el, false);
+        } catch (e) { stop(); out(el, `<span class="tag red">Verifier error: ${esc(e.message)}</span><div class="row"><button onclick="render()">Retry</button></div>`); }
+      }
+
+      function stepOffice(el, done) {
+        const you = team()[0];
+        const view = () => `<div class="card"><b>${esc(you.name)}</b> · ${ctx.outOfOffice ? '<span class="tag red">Out of office today</span>' : '<span class="tag">In the office</span>'} <span class="tag sim">Calendar status simulated</span></div>`;
+        if (done) return body(el, view());
+        body(el, `<p class="sub" style="margin:0">The upright isn't done and it's due today. TruthLink checks the owner's availability before chasing them.</p>
+          <div class="row"><label class="toggle"><input type="checkbox" id="ooo" ${ctx.outOfOffice ? "checked" : ""} style="width:auto"> ${esc(you.name)} is out of office (e.g. exam week)</label></div>`);
+        $("#ooo", el).onchange = (e) => { ctx.outOfOffice = e.target.checked; out(el, view()); nextBtn(el, false, ctx.outOfOffice ? "Find coverage →" : "Keep owner, ask for update →"); };
+        out(el, view()); nextBtn(el, false, "Find coverage →");
+      }
+
+      function stepReassign(el, done) {
+        const t = ctx.task, need = t.required_skills?.length ? t.required_skills.filter((s) => team().some((p) => p.skills.includes(s))) : ["Suspension design"];
+        const hours = Math.min(t.estimated_hours || 3, 3); // remaining effort on a part that is already modelled
+        const owner = ctx.task.suggested_owner_id;
+        if (!ctx.outOfOffice) { ctx.replacement = team().find((p) => p.id === owner); if (!done) { body(el, `<p class="sub" style="margin:0">Owner is available, so the task stays with ${esc(ctx.replacement.name)}.</p>`); nextBtn(el, false); } return; }
+        const ranked = team().filter((p) => p.id !== owner).map((p) => ({ p, qualified: need.every((s) => p.skills.includes(s)), free: p.capacity - p.assigned, exp: need.reduce((a, s) => a + (p.approved[s] || 0), 0) }))
+          .filter((c) => c.qualified).sort((a, b) => (b.free >= hours) - (a.free >= hours) || b.exp - a.exp || b.free - a.free);
+        ctx.replacement = ranked.find((c) => c.free >= hours)?.p || ranked[0]?.p;
+        const view = `<p class="sub" style="margin:0">Ranked in code, not by the AI, so it's reproducible: required skills (${esc(need.join(", "))}) → enough free capacity for the remaining ~${hours} h → most team-lead-approved work in those skills.</p>
+          <div class="table-wrap"><table><tr><th>Candidate</th><th>Verified experience</th><th>Free this week</th><th></th></tr>${ranked.map((c) => `<tr${c.p === ctx.replacement ? ' style="background:#f1f8f4"' : ""}><td><b>${esc(c.p.name)}</b><br><span class="sub" style="font-size:12px">${esc(c.p.role)}</span></td><td>${c.exp} approved tasks</td><td>${c.free} h</td><td>${c.p === ctx.replacement ? '<span class="tag">Picked</span>' : c.free < hours ? '<span class="tag red">Not enough capacity</span>' : ""}</td></tr>`).join("")}</table></div>
+          <div class="card"><b>Reassigned to ${esc(ctx.replacement.name)}</b>, with team-lead approval. ${esc(team()[0].name)}'s work so far (Fusion v${ctx.snapshot.current_version}) carries over.</div>`;
+        body(el, view);
+        if (!done) nextBtn(el, false);
+      }
+
+      async function stepFollowup(el, done) {
+        const who = ctx.replacement;
+        if (done) return;
+        body(el, `<p class="sub" style="margin:0">TruthLink drafts the check-in now and schedules it. Nobody has to remember to chase.</p>`);
+        const stop = busy(el, "Drafting the follow-up with Luminal…");
+        let draft = null;
+        try {
+          draft = await post("/api/followup", { employee_name: who.name, task: { title: ctx.task.title, criteria: ctx.verify.missing.join("; ") || "Upright mass 450 g or less", status: "in_progress", unavailable: false }, reason: "missing_evidence", due_date: ctx.task.due_date || today, last_activity: { text: `Fusion v${ctx.snapshot.current_version} measured ${ctx.snapshot.mass_g} g against a 450 g target`, source: ctx.snapshotSource === "live" ? "real" : "simulated" } });
+        } catch {}
+        const text = draft?.message || `Hi ${who.name.split(" ")[0]}, you've picked up "${ctx.task.title}". Fusion v${ctx.snapshot.current_version} is at ${ctx.snapshot.mass_g} g vs the 450 g target. Can you share a plan to get it under?`;
+        let live = false;
+        try { await post("/api/slack", { action: "send", text: `:arrows_counterclockwise: *Reassigned by TruthLink* — ${text}` }); live = true; } catch {}
+        stop();
+        out(el, `<span class="tag ${live ? "" : "sim"}">${live ? "Sent to Slack" : "Simulated Slack message"}</span> ${draft ? '<span class="tag">AI · Luminal</span>' : '<span class="tag gray">Template</span>'}
+          <div class="card slack"><b>TruthLink → ${esc(who.name)}</b><pre style="background:none;padding:4px 0 0">${esc(text)}</pre></div>
+          <div class="card"><b>⏩ Time skip: tomorrow, 9:00</b> <span class="tag sim">Simulated time</span><br>No new Fusion version since the reassignment, so TruthLink sends the scheduled check-in: “Any update on the front upright? Latest measured mass is still ${ctx.snapshot.mass_g} g.”<br><span class="sub">When ${esc(who.name.split(" ")[0])} saves a lighter version, the add-in reports it and the check reruns automatically.</span></div>`);
+        nextBtn(el, false, "Finish demo ✓");
+      }
+
+      function resetDemo() { current = 0; Object.assign(ctx, { minutes: "", tasks: [], task: null, snapshot: null, verify: null, outOfOffice: true, replacement: null }); render(); window.scrollTo(0, 0); }
+
+      api("/api/slack").then((j) => { $("#slackStatus").className = "tag " + (j.configured ? "" : "sim"); $("#slackStatus").textContent = j.configured ? "Slack connected" : "Slack not connected · simulated"; }).catch(() => ($("#slackStatus").textContent = "Slack status unknown"));
+      api("/api/health").then((j) => { $("#aiStatus").className = "tag " + (j.ai ? "" : "red"); $("#aiStatus").textContent = j.ai ? "AI live · " + j.provider : "AI offline"; }).catch(() => ($("#aiStatus").textContent = "AI status unknown"));
+      try { ctx.account = JSON.parse(localStorage.getItem("truthlink-demo-account")); } catch {}
+      render();
+    </script>
+  </body>
+</html>

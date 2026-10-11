@@ -482,7 +482,7 @@ function render() {
       ([id, name]) =>
         `<button class="${page === id ? "active" : ""}" onclick="go('${id}')"><span>${icons[id]}</span>${name}${id === "tasks" ? `<span class="count">${state.tasks.filter(active).length}</span>` : ""}</button>`,
     )
-    .join("") + '<a class="lab-nav" href="/lab" target="_blank" rel="noopener noreferrer">Verifier Lab ↗</a>';
+    .join("") + '<a class="lab-nav" href="/demo" target="_blank" rel="noopener noreferrer">Live demo ↗</a>';
   document.getElementById("app").innerHTML =
     {
       overview: overview,
@@ -513,7 +513,7 @@ function overview() {
       "Less chasing. Clearer handoffs. A coordinator who stays in charge.",
       `<button onclick="go('meetings')">▧ Import meeting notes</button><button class="primary" onclick="newTask()">+ New task</button>`,
     ) +
-    demoGuide() + labCallout() +
+    demoGuide() +
     `<div class="stats">${[
       [
         "Active tasks",
@@ -1640,7 +1640,7 @@ async function loadPerformance() {
     const data = await apiJson("/api/metrics?workspace=demo-racing-team");
     if (!Array.isArray(data.members) || !Array.isArray(data.tasks)) throw new Error("Invalid metrics response");
     performanceData = data;
-  } catch (e) { performanceData = null; toast("Performance history unavailable: " + e.message + ". Showing workspace records only."); }
+  } catch (e) { performanceData = null; if (!/not configured/i.test(e.message)) toast("Performance history unavailable: " + e.message + ". Showing workspace records only."); }
   finally { performanceLoading = false; if (page === "insights") render(); }
 }
 function firstPassScore(member, skills) {
@@ -1776,4 +1776,4 @@ loadSharedState();
 
 loadPerformance();
 
-loadLabResults();
+// Verifier Lab results are pitch material at /lab, not part of the product UI.
