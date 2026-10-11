@@ -720,7 +720,15 @@
           grid-template-columns: 1fr;
         }
       }
-    </style>
+    @media print {
+  body > :not(dialog) { display: none !important; }
+  dialog { position: static; width: 100%; max-width: none; max-height: none; height: auto; border: 0; box-shadow: none; overflow: visible; margin: 0; padding: 0; }
+  dialog::backdrop { background: transparent; }
+  .modal-footer { display: none !important; }
+  .modal-content { max-height: none; overflow: visible; }
+  .handoff-pack { color: #000; background: #fff; }
+}
+</style>
   </head>
   <body>
     <div class="shell">

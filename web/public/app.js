@@ -656,7 +656,7 @@ function togglePTO(id) {
 function profile(id) {
   let p = person(id);
   show(
-    `<h2>${p.name}</h2><p>${p.role}</p><div class="evidence">${p.history} approved tasks · Declared skills: ${p.skills.join(", ")}<br>Approval records below show demonstrated task experience. Declared skills alone do not certify a member.</div><h3>Approved experience</h3>${(p.records || []).map((r) => `<div class="draft"><strong>${esc(r.title)}</strong><p>${esc(r.skills.join(" · "))} · Approved ${esc(r.approved_at)} · ${r.source === "fictional_seed" ? "Fictional seed record" : "Demo approval"}</p></div>`).join("")}<h3>Tasks in this workspace</h3>${state.tasks
+    `<button class="primary" onclick="generateHandoffPack('${id}')">Generate handoff pack</button><h2>${p.name}</h2><p>${p.role}</p><div class="evidence">${p.history} approved tasks · Declared skills: ${p.skills.join(", ")}<br>Approval records below show demonstrated task experience. Declared skills alone do not certify a member.</div><h3>Approved experience</h3>${(p.records || []).map((r) => `<div class="draft"><strong>${esc(r.title)}</strong><p>${esc(r.skills.join(" · "))} · Approved ${esc(r.approved_at)} · ${r.source === "fictional_seed" ? "Fictional seed record" : "Demo approval"}</p></div>`).join("")}<h3>Tasks in this workspace</h3>${state.tasks
       .filter((t) => t.owner === id)
       .map(
         (t) =>
@@ -1410,5 +1410,53 @@ function supersedeDecision(id, confirm = false) {
   const choice = document.getElementById("newerDecision").value;
   if (!newer.some(n => n.id === choice)) return toast("Choose a newer decision for this task.");
   d.superseded_by = choice; save(); closeModal(); render();
+}
+let handoffCurrent = null;
+function handoffInput(id) {
+  const member = person(id), owned = state.tasks.filter(t => t.owner === id), taskIds = new Set(owned.map(t => t.id));
+  const records = (member.records || []).filter(r => r.approved_at && !["exists","binary"].includes(r.verification_type));
+  const decisions = (state.decisions || []).filter(d => d.by === id || taskIds.has(d.task_id));
+  const open = owned.filter(active);
+  return {
+    member: { id, name: member.name }, owned_areas: [...new Set(owned.map(t => t.project))],
+    verified_records: records.slice(-12).map(r => ({ title:r.title.slice(0,800),skills:r.skills || [],approved_at:r.approved_at,source:r.source || "workspace approval" })),
+    decisions: decisions.slice(-12).map(d => ({summary:d.summary.slice(0,800),why:d.why.slice(0,800),kind:d.kind,at:d.at,by:person(d.by)?.name || d.by,superseded_by:d.superseded_by,source:d.source || "workspace decision"})),
+    open_tasks: open.slice(0,20).map(t => ({ title:t.title.slice(0,800),status:t.status,criteria:t.criteria.slice(0,800),evidence:t.evidence.slice(0,10),evidence_status:t.aiReview ? t.aiReview.verdict : t.checked ? "Local checklist reviewed; team lead still decides quality" : "Not reviewed" })),
+    people: state.people.filter(p => p.id !== id).map(p => ({name:p.name,role:p.role})),
+    context_notes: `Workspace may contain fictional seed records. Included ${Math.min(12,records.length)} of ${records.length} approved records, ${Math.min(12,decisions.length)} of ${decisions.length} decisions, ${Math.min(20,open.length)} of ${open.length} open tasks. Source text limited to 800 characters; evidence filenames limited to 10 per task. Availability and next steps must be confirmed.`
+  };
+}
+function handoffTemplate(input) {
+  return {
+    summary: `${input.member.name}: ${input.verified_records.length} included approval records and ${input.open_tasks.length} open tasks. Confirm uncertain details with the team.`,
+    owned_areas: input.owned_areas,
+    how_things_work: input.open_tasks.map(t => `${t.title}: ${t.criteria}. Evidence: ${t.evidence.join(", ") || "none"}; ${t.evidence_status}.`),
+    open_work: input.open_tasks.map(t => ({task:t.title,status:t.status,next_step:t.status === "blocked" ? "Confirm the blocker and needed support with the owner." : t.status === "pending_approval" ? "Ask the team lead to review evidence and record a decision." : "Confirm next steps against acceptance criteria and add evidence."})),
+    lessons: input.decisions.map(d => `${d.source === "fictional_seed" ? "Fictional: " : ""}${d.summary}. Why: ${d.why}${d.superseded_by ? " (superseded; historical context only)" : ""}`),
+    who_to_ask: input.people.map(p => p.name)
+  };
+}
+async function generateHandoffPack(id) {
+  let input = handoffInput(id), pack, source;
+  toast("Preparing handoff pack…");
+  try {
+    const res = await fetch("/api/handoff", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input)});
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || "Handoff unavailable");
+    if (JSON.stringify(input) !== JSON.stringify(handoffInput(id))) throw new Error("Workspace changed");
+    pack = json; source = "AI · " + json.provider + " · " + json.model;
+  } catch {
+    input = handoffInput(id); pack = handoffTemplate(input); source = "Template (no AI)";
+  }
+  handoffCurrent = {input,pack,source};
+  const list = items => items.length ? items.map(s => `<p>${esc(s)}</p>`).join("") : '<p>Not recorded; confirm with the team.</p>';
+  show(`<section class="handoff-pack"><div class="eyebrow">Successor handoff · ${esc(source)}</div><h2>${esc(input.member.name)}</h2><p>${esc(pack.summary)}</p><p class="hint">${esc(input.context_notes)}</p><h3>Owned areas</h3>${list(pack.owned_areas)}<h3>How things work</h3>${list(pack.how_things_work)}<h3>Open work</h3>${pack.open_work.map(w => `<div class="draft"><strong>${esc(w.task)}</strong> <span class="tag gray">${esc(w.status)}</span><p>${esc(w.next_step)}</p></div>`).join("") || '<p>No open tasks recorded.</p>'}<h3>Lessons and decisions</h3>${list(pack.lessons)}<h3>Who to ask</h3>${list(pack.who_to_ask)}<p class="hint">Draft from workspace records; verify uncertain details before using it.</p></section>`, '<button onclick="window.print()">Print</button><button class="primary" onclick="downloadHandoff()">Download .md</button>');
+}
+function downloadHandoff() {
+  if (!handoffCurrent) return;
+  const {input,pack,source} = handoffCurrent;
+  const lines = ["# Handoff: " + input.member.name,source,input.context_notes,pack.summary,"## Owned areas",...pack.owned_areas.map(s => "- " + s),"## How things work",...pack.how_things_work.map(s => "- " + s),"## Open work",...pack.open_work.map(w => "- " + w.task + " (" + w.status + "): " + w.next_step),"## Lessons and decisions",...pack.lessons.map(s => "- " + s),"## Who to ask",...pack.who_to_ask.map(s => "- " + s)];
+  const url = URL.createObjectURL(new Blob([lines.join("\n\n")],{type:"text/markdown;charset=utf-8"}));
+  const a = document.createElement("a");a.href=url;a.download=input.member.name.toLowerCase().replace(/[^a-z0-9]+/g,"-")+"-handoff.md";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 render();
