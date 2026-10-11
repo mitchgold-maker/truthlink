@@ -642,55 +642,165 @@ function closeModal() {
 function review(id) {
   const t = state.tasks.find((t) => t.id === id);
   show(
-    `<div class="eyebrow">${esc(t.project)} · ${t.type === "exists" ? "File presence check" : "Coordinator approval required"}</div><h2 style="margin-top:10px">${esc(t.title)}</h2><div class="row"><p>${esc(person(t.owner)?.name)} · Due ${esc(t.due)}</p>${badge(t)}</div>${active(t) ? `<label>Progress update</label><select aria-label="Update progress" onchange="setProgress('${t.id}',this.value)"><option value="">Choose an update…</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select>` : ""}<label>Acceptance criteria</label><div class="evidence">${esc(t.criteria)}</div><label>Submitted evidence</label><div class="evidence">${t.evidence.length ? t.evidence.map((e) => "▧ " + esc(e)).join("<br>") : "No evidence submitted."}</div>${t.status !== "completed" ? `<input type="file" id="evidenceFile" multiple aria-label="Upload task evidence"><p class="hint">Demo stores filenames only. File contents are not uploaded or analyzed. The local demo checks filenames against expected deliverables.</p><button style="margin-top:12px" onclick="attach('${id}')">Add evidence</button><label>Review result</label><div class="evidence">${t.checked ? "Evidence checklist reviewed. Quality and suitability remain a coordinator decision." : "Evidence has not passed the demo checklist. File activity alone cannot prove completion."}</div>` : '<div class="evidence">Completed and recorded in the task history.</div>'}`,
+    `<div class="eyebrow">${esc(t.project)} · ${t.type === "exists" ? "File presence check" : "Coordinator approval required"}</div><h2 style="margin-top:10px">${esc(t.title)}</h2><div class="row"><p>${esc(person(t.owner)?.name)} · Due ${esc(t.due)}</p>${badge(t)}</div>${active(t) ? `<label>Progress update</label><select aria-label="Update progress" onchange="setProgress('${t.id}',this.value)"><option value="">Choose an update…</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option></select>` : ""}<label>Acceptance criteria</label><div class="evidence">${esc(t.criteria)}</div>${t.aiReview ? `<label>AI review</label><div class="evidence"><span class="tag ${t.aiReview.verdict === "pass" ? "" : "amber"}">${esc(t.aiReview.verdict)}</span><p>${esc(t.aiReview.summary)}</p>${t.aiReview.checks.map((c) => `<p><strong>${esc(c.met)} · ${esc(c.criterion)}</strong><br>${esc(c.reason)}</p>`).join("")}${t.aiReview.missing.length ? `<p>Missing: ${esc(t.aiReview.missing.join("; "))}</p>` : ""}<p class="hint">AI · ${esc(t.aiReview.provider)} · ${esc(t.aiReview.model)} · ${esc(t.aiReview.at)}</p></div>` : ""}<label>Submitted evidence</label><div class="evidence">${t.evidence.length ? t.evidence.map((e) => "▧ " + esc(e)).join("<br>") : "No evidence submitted."}</div>${t.status !== "completed" ? `<input type="file" id="evidenceFile" multiple aria-label="Upload task evidence"><p class="hint">Text-like files are stored in this browser (up to 15,000 characters) and sent to the AI when you run a review. Other file contents cannot be read; their filenames alone do not prove quality.</p><button style="margin-top:12px" onclick="attach('${id}')">Add evidence</button><label>Review result</label><div class="evidence">${esc(t.checkSource || "Not reviewed")}<br>${t.checked ? "Evidence checklist reviewed. Quality and suitability remain a coordinator decision." : "Evidence has not passed the demo checklist. File activity alone cannot prove completion."}</div>` : '<div class="evidence">Completed and recorded in the task history.</div>'}`,
     t.status === "completed"
       ? ""
-      : `<button onclick="checkEvidence('${id}')">Run demo check</button>${t.type === "manager" && t.checked ? `<button class="primary" onclick="approve('${id}')">Coordinator: approve</button>` : ""}`,
+      : `<button onclick="checkEvidence('${id}')">Review evidence</button>${t.type === "manager" && t.checked ? `<button class="primary" onclick="approve('${id}')">Coordinator: approve</button>` : ""}`,
   );
 }
-function attach(id) {
-  let f = Array.from(document.getElementById("evidenceFile").files);
-  if (!f.length) return toast("Select evidence files first.");
-  let t = state.tasks.find((t) => t.id === id);
-  t.evidence.push(...f.filter((x) => x.size > 0).map((x) => x.name));
+async function attach(id) {
+  const files = Array.from(
+    document.getElementById("evidenceFile").files,
+  ).filter((f) => f.size > 0);
+  if (!files.length) return toast("Select non-empty evidence files first.");
+  const t = state.tasks.find((t) => t.id === id);
+  const docs = await Promise.all(
+    files.map(async (file) => {
+      let text = null;
+      if (
+        /\.(txt|md|csv|json)$/i.test(file.name) ||
+        file.type.startsWith("text/")
+      ) {
+        try {
+          text = (await file.slice(0, 60000).text()).slice(0, 15000);
+        } catch {
+          /* unreadable evidence stays null */
+        }
+      }
+      return { name: file.name, size: file.size, type: file.type, text };
+    }),
+  );
+  if (!active(t)) return toast("Task is already completed.");
+  t.evidence.push(...docs.map((d) => d.name));
+  t.evidenceDocs = [...(t.evidenceDocs || []), ...docs];
   t.checked = false;
+  delete t.aiReview;
+  delete t.checkSource;
   t.status = "in_progress";
-  log(`Evidence added to ${t.title}`);
+  log("Evidence added to " + t.title);
   closeModal();
   review(id);
 }
-function checkEvidence(id) {
-  let t = state.tasks.find((t) => t.id === id);
+async function checkEvidence(id) {
+  const t = state.tasks.find((t) => t.id === id);
   if (!t || !active(t)) return toast("Task is already completed.");
+  if (t.verifying) return toast("Evidence review is already running.");
   if (t.type === "exists") {
     if (!t.evidence.length)
       return toast("Missing required file. Task remains open.");
     t.status = "completed";
     t.checked = true;
     recordCompletion(t);
-    log(`File-presence check completed ${t.title}`);
+    log("File-presence check completed " + t.title);
     closeModal();
     render();
-    toast("File presence verified. No content-quality claim made.");
-    return;
+    return toast("File presence verified. No content-quality claim made.");
   }
-  const missing = (t.required_evidence || []).filter(
-    (required) => !t.evidence.some((e) => e.toLowerCase().includes(required)),
-  );
-  if (!t.evidence.length || missing.length) {
-    t.checked = false;
-    save();
-    toast("Incomplete evidence: add the required deliverables before review.");
-    return;
-  }
-  t.checked = true;
-  t.status = "pending_approval";
-  log(
-    `Demo deliverable checklist passed for ${t.title}; coordinator review required`,
-  );
-  closeModal();
+  t.verifying = true;
+  t.checked = false;
+  if (t.status === "pending_approval") t.status = "in_progress";
+  save();
   review(id);
-  render();
+  const snapshot = JSON.stringify({
+    title: t.title,
+    criteria: t.criteria,
+    evidence: t.evidence,
+    docs: t.evidenceDocs,
+  });
+  try {
+    toast("Reviewing available evidence with AI…");
+    const res = await fetch("/api/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: t.title,
+        criteria: t.criteria,
+        verification_type: "complex",
+        evidence: t.evidence.map(
+          (name) =>
+            (t.evidenceDocs || []).find((d) => d.name === name) || {
+              name,
+              size: 0,
+              type: "",
+              text: null,
+            },
+        ),
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || "AI review failed");
+    if (
+      !active(t) ||
+      snapshot !==
+        JSON.stringify({
+          title: t.title,
+          criteria: t.criteria,
+          evidence: t.evidence,
+          docs: t.evidenceDocs,
+        })
+    )
+      return toast("Evidence changed. Run the review again.");
+    t.aiReview = {
+      verdict: json.verdict,
+      checks: json.checks,
+      summary: json.summary,
+      missing: json.missing,
+      model: json.model,
+      provider: json.provider,
+      at: new Date().toISOString(),
+    };
+    t.checkSource = "AI reviewed";
+    t.checked = json.verdict === "pass";
+    if (t.checked) t.status = "pending_approval";
+    else if (t.status === "pending_approval") t.status = "in_progress";
+    log(
+      "AI reviewed " +
+        t.title +
+        ": " +
+        json.verdict +
+        "; coordinator approval still required",
+    );
+    toast(
+      t.checked
+        ? "AI reviewed. Coordinator approval required."
+        : "Task remains open. " + json.missing.join("; "),
+    );
+  } catch {
+    if (
+      !active(t) ||
+      snapshot !==
+        JSON.stringify({
+          title: t.title,
+          criteria: t.criteria,
+          evidence: t.evidence,
+          docs: t.evidenceDocs,
+        })
+    )
+      return toast("Evidence changed. Run the review again.");
+    delete t.aiReview;
+    const missing = (t.required_evidence || []).filter(
+      (required) =>
+        !t.evidence.some((e) =>
+          e.toLowerCase().includes(required.toLowerCase()),
+        ),
+    );
+    t.checkSource = "Local checklist (AI unavailable)";
+    t.checked = Boolean(t.evidence.length && !missing.length);
+    if (t.checked) t.status = "pending_approval";
+    else if (t.status === "pending_approval") t.status = "in_progress";
+    log(t.checkSource + " for " + t.title + "; filename presence only");
+    toast(
+      t.checkSource +
+        (t.checked
+          ? ". Coordinator must review contents."
+          : ". Missing: " + (missing.join(", ") || "evidence")),
+    );
+  } finally {
+    delete t.verifying;
+    save();
+    render();
+    review(id);
+  }
 }
 function approve(id) {
   let t = state.tasks.find((t) => t.id === id);
@@ -877,7 +987,10 @@ function followupsPage() {
   let ts = state.tasks.filter(
     (t) =>
       active(t) &&
-      (!t.evidence.length || person(t.owner)?.pto || t.status === "blocked"),
+      (!t.evidence.length ||
+        person(t.owner)?.pto ||
+        t.status === "blocked" ||
+        (t.due && t.due < new Date().toLocaleDateString("en-CA"))),
   );
   return (
     heading(
@@ -886,10 +999,84 @@ function followupsPage() {
       "Specific nudges for missing evidence, blockers, and handoffs.",
       `<span class="tag gray">Drafts only · Slack not connected</span>`,
     ) +
-    `<section class="panel"><div class="panel-head"><h2>Suggested follow-ups</h2><span class="tag">${ts.length} drafts</span></div>${ts.map((t) => `<div class="review"><div class="row"><h3>${esc(t.title)}</h3>${badge(t)}</div><p>${esc(person(t.owner).name)} · ${person(t.owner).pto ? "Coverage needed" : "Evidence missing"}</p><div class="evidence">${esc(message(t))}</div><div class="actions"><button class="small" onclick="copyFollowup('${t.id}')">Copy message</button><button class="small quiet" onclick="review('${t.id}')">View task →</button>${person(t.owner).pto ? `<button class="small" onclick="recommend('${t.id}')">Find coverage</button>` : ""}</div></div>`).join("") || '<div class="empty">No follow-ups needed.</div>'}</section><p class="hint">Rule-based draft messages. Nothing is sent automatically. Future Slack integration can deliver coordinator-approved reminders.</p>`
+    `<section class="panel"><div class="panel-head"><h2>Suggested follow-ups</h2><span class="tag">${ts.length} drafts</span></div>${ts.map((t) => `<div class="review"><div class="row"><h3>${esc(t.title)}</h3>${badge(t)}</div><p>${esc(person(t.owner).name)} · ${person(t.owner).pto ? "Coverage needed" : t.status === "blocked" ? "Blocked" : t.due && t.due < new Date().toLocaleDateString("en-CA") ? "Overdue" : "Evidence missing"}</p><div class="evidence">${esc(message(t))}</div><p class="hint">${t.followupDraft && message(t) === t.followupDraft.message ? `AI draft · ${esc(t.followupDraft.provider)} · ${esc(t.followupDraft.model)} · ${esc(t.followupDraft.tone)}<br>Next step: ${esc(t.followupDraft.suggested_next_step)}` : esc(t.followupSource || "Template draft")}</p><div class="actions"><button class="small" onclick="message(state.tasks.find(t => t.id === '${t.id}'), true)" ${t.drafting ? "disabled" : ""}>Draft with AI</button><button class="small" onclick="copyFollowup('${t.id}')">Copy message</button><button class="small quiet" onclick="review('${t.id}')">View task →</button>${person(t.owner).pto ? `<button class="small" onclick="recommend('${t.id}')">Find coverage</button>` : ""}</div></div>`).join("") || '<div class="empty">No follow-ups needed.</div>'}</section><p class="hint">Template or labelled AI drafts. Copy to clipboard only; nothing is sent. AI drafts use supplied task facts and never infer hours worked.</p>`
   );
 }
-function message(t) {
+function message(t, draftWithAI = false) {
+  if (draftWithAI)
+    return (async () => {
+      const signature = JSON.stringify({
+        owner: t.owner,
+        title: t.title,
+        criteria: t.criteria,
+        due: t.due,
+        status: t.status,
+        unavailable: person(t.owner)?.pto,
+        evidence: t.evidence,
+      });
+      if (t.drafting) return;
+      t.drafting = true;
+      try {
+        toast("Drafting follow-up with AI…");
+        const res = await fetch("/api/followup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            employee_name: person(t.owner).name,
+            task: {
+              title: t.title,
+              criteria: t.criteria,
+              status: t.status,
+              unavailable: Boolean(person(t.owner).pto),
+            },
+            reason:
+              t.status === "blocked"
+                ? "blocked"
+                : t.due && t.due < new Date().toLocaleDateString("en-CA")
+                  ? "overdue"
+                  : "missing_evidence",
+            due_date: t.due || null,
+            last_activity: null,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "AI drafting failed");
+        if (
+          signature !==
+          JSON.stringify({
+            owner: t.owner,
+            title: t.title,
+            criteria: t.criteria,
+            due: t.due,
+            status: t.status,
+            unavailable: person(t.owner)?.pto,
+            evidence: t.evidence,
+          })
+        )
+          return toast("Task changed. Draft again.");
+        t.followupDraft = { ...json, signature };
+        toast("AI draft ready. Nothing was sent.");
+      } catch {
+        delete t.followupDraft;
+        t.followupSource = "Template (AI unavailable)";
+        toast("AI unavailable. Template retained; nothing was sent.");
+      } finally {
+        delete t.drafting;
+        save();
+        render();
+      }
+      return;
+    })();
+  const signature = JSON.stringify({
+    owner: t.owner,
+    title: t.title,
+    criteria: t.criteria,
+    due: t.due,
+    status: t.status,
+    unavailable: person(t.owner)?.pto,
+    evidence: t.evidence,
+  });
+  if (t.followupDraft?.signature === signature) return t.followupDraft.message;
   return person(t.owner).pto
     ? `Hi ${person(t.owner).name.split(" ")[0]}, we're arranging coverage for “${t.title}” while you are unavailable. Please share any handoff context when you're available. A coordinator will approve the replacement.`
     : `Hi ${person(t.owner).name.split(" ")[0]}, a quick check on “${t.title}”, due ${t.due || "date not set"}. Please add the required evidence or flag a blocker: ${t.criteria} You can review the task in ProofPilot.`;
