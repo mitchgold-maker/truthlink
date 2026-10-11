@@ -363,7 +363,9 @@ try {
 } catch {
   state = structuredClone(seed);
 }
-if (!state.tasks.some(t => t.id === "logistics-food" || t.recurring_series === "logistics-food")) state.tasks.push(structuredClone(seed.tasks.find(t => t.id === "logistics-food")));
+for (const key of ["tasks","people","activity","decisions"]) if (!Array.isArray(state[key])) state[key] = [];
+state.tasks.forEach(t => { delete t.verifying; delete t.drafting; delete t.pullingFusion; delete t.pullingFusion; t.evidence ||= []; });
+if (state.tasks.length && !state.tasks.some(t => t.id === "logistics-food" || t.recurring_series === "logistics-food")) state.tasks.push(structuredClone(seed.tasks.find(t => t.id === "logistics-food")));
 state.decisions ||= structuredClone(seed.decisions);
 const uprightTask = state.tasks.find(t => t.id === "t2");
 if (uprightTask && uprightTask.fusion_document === undefined) uprightTask.fusion_document = "Front Upright";
@@ -438,7 +440,7 @@ function save() {
   }
   scheduleSync();
   try {
-    localStorage.setItem(KEY, JSON.stringify(state));
+    localStorage.setItem(KEY, JSON.stringify(workspacePayload()));
   } catch {
     toast("Browser storage unavailable. Changes last for this session only.");
   }
@@ -447,7 +449,10 @@ function log(text) {
   state.activity.unshift({ text, time: "Just now · demo action" });
   save();
 }
+let lastToastMessage = "", lastToastAt = 0;
 function toast(s) {
+  if (s === lastToastMessage && Date.now()-lastToastAt < 10000) return;
+  lastToastMessage = s; lastToastAt = Date.now();
   const t = document.getElementById("toast");
   t.textContent = s;
   t.hidden = false;
@@ -541,7 +546,7 @@ function overview() {
       })
       .join(
         "",
-      )}</section><section class="panel"><div class="panel-head"><h2>Ready for your review</h2><span class="tag amber">${pending.length}</span></div>${pending.length ? pending.map((t) => `<div class="review"><div class="eyebrow">${esc(t.project)}</div><h3 style="margin-top:9px">${esc(t.title)}</h3><p>${esc(person(t.owner).name)} · Evidence checklist reviewed</p><button class="small" onclick="review('${t.id}')">Review deliverables →</button></div>`).join("") : '<div class="empty">All caught up. No pending reviews.</div>'}</section></div><div class="grid section-gap"><section class="panel"><div class="panel-head"><h2>Member commitments</h2><button class="small quiet" onclick="go('team')">Explore members →</button></div><div class="table-wrap"><table><thead><tr><th>Member</th><th>Remaining work</th><th>Capacity</th></tr></thead><tbody>${state.people
+      )}</section><section class="panel"><div class="panel-head"><h2>Ready for your review</h2><span class="tag amber">${pending.length}</span></div>${pending.length ? pending.map((t) => `<div class="review"><div class="eyebrow">${esc(t.project)}</div><h3 style="margin-top:9px">${esc(t.title)}</h3><p>${esc((person(t.owner)?.name || "Unassigned"))} · Evidence checklist reviewed</p><button class="small" onclick="review('${t.id}')">Review deliverables →</button></div>`).join("") : '<div class="empty">All caught up. No pending reviews.</div>'}</section></div><div class="grid section-gap"><section class="panel"><div class="panel-head"><h2>Member commitments</h2><button class="small quiet" onclick="go('team')">Explore members →</button></div><div class="table-wrap"><table><thead><tr><th>Member</th><th>Remaining work</th><th>Capacity</th></tr></thead><tbody>${state.people
       .slice(0, 4)
       .map(
         (p) =>
@@ -676,6 +681,7 @@ function togglePTO(id) {
 }
 function profile(id) {
   let p = person(id);
+  if (!p) return toast("Member no longer exists. Return to Members & capacity.");
   show(
     `<button class="primary" data-ai-key="handoff:${id}" onclick="generateHandoffPack('${id}')">Generate handoff pack</button><h2>${p.name}</h2><p>${p.role}</p><div class="evidence">${p.history} approved tasks · Declared skills: ${p.skills.join(", ")}<br>Approval records below show demonstrated task experience. Declared skills alone do not certify a member.</div><h3>Approved experience</h3>${(p.records || []).map((r) => `<div class="draft"><strong>${esc(r.title)}</strong><p>${esc(r.skills.join(" · "))} · Approved ${esc(r.approved_at)} · ${r.source === "fictional_seed" ? "Fictional seed record" : "Demo approval"}</p></div>`).join("")}<h3>Tasks in this workspace</h3>${state.tasks
       .filter((t) => t.owner === id)
@@ -694,6 +700,7 @@ function recommendOwner(id) {
 async function recommend(id) {
   if (aiOperations.has("explain:"+id)) return toast("Explanation is already running.");
   let t = state.tasks.find((t) => t.id === id);
+  if (!t) return toast("No task available. Create a task before finding coverage.");
   let candidates = state.people
     .filter(
       (p) =>
@@ -802,7 +809,7 @@ async function attach(id) {
   closeModal();
   review(id);
 }
-async function checkEvidence(id) {
+async function checkEvidence(id, sinceOverride = null) {
   const t = state.tasks.find((t) => t.id === id);
   if (!t || !active(t)) return toast("Task is already completed.");
   if (t.verifying) return toast("Evidence review is already running.");
@@ -818,7 +825,7 @@ async function checkEvidence(id) {
     render();
     return toast("File presence verified. No content-quality claim made.");
   }
-  const since = t.updated_at;
+  const since = sinceOverride || t.updated_at;
   t.verifying = true;
   t.checked = false;
   if (t.status === "pending_approval") t.status = "in_progress";
@@ -854,7 +861,7 @@ async function checkEvidence(id) {
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || "AI review failed");
     if (
-      !active(t) ||
+      !state.tasks.includes(t) || !active(t) ||
       snapshot !==
         JSON.stringify({
           title: t.title,
@@ -892,9 +899,9 @@ async function checkEvidence(id) {
         ? "AI reviewed. Coordinator approval required."
         : "Task remains open. " + json.missing.join("; "),
     );
-  } catch {
+  } catch (e) {
     if (
-      !active(t) ||
+      !state.tasks.includes(t) || !active(t) ||
       snapshot !==
         JSON.stringify({
           title: t.title,
@@ -911,7 +918,7 @@ async function checkEvidence(id) {
           e.toLowerCase().includes(required.toLowerCase()),
         ),
     );
-    t.checkSource = "Local checklist (AI unavailable)";
+    t.checkSource = "Local filename checklist (AI unavailable: " + e.message + ")";
     t.checked = Boolean(t.evidence.length && !missing.length);
     if (t.checked) t.status = "pending_approval";
     else if (t.status === "pending_approval") t.status = "in_progress";
@@ -944,7 +951,7 @@ function approve(id) {
   track("approved",t);
   if (reported) track("hours_reported",t,{reported_hours:Number(reported)});
   log(
-    `Coordinator approved ${t.title}; ${person(t.owner).name}'s history updated`,
+    `Coordinator approved ${t.title}; ${(person(t.owner)?.name || "Unassigned")}'s history updated`,
   );
   closeModal();
   render();
@@ -1070,6 +1077,7 @@ async function extract() {
   } catch (e) {
     drafts = localExtract(notes);
     extractSource = "Local parser (AI unavailable: " + e.message + ")";
+    toast("Extraction failed: " + e.message + ". Using the local parser; review drafts before assigning.");
   }
   renderDrafts();
 }
@@ -1136,7 +1144,7 @@ function followupsPage() {
       "Specific nudges for missing evidence, blockers, and handoffs.",
       `<span class="tag gray">Drafts only · Slack not connected</span>`,
     ) +
-    `<section class="panel"><div class="panel-head"><h2>Suggested follow-ups</h2><span class="tag">${ts.length} drafts</span></div>${ts.map((t) => `<div class="review"><div class="row"><h3>${esc(t.title)}</h3>${badge(t)}</div><p>${esc(person(t.owner).name)} · ${person(t.owner).pto ? "Coverage needed" : t.status === "blocked" ? "Blocked" : t.due && t.due < new Date().toLocaleDateString("en-CA") ? "Overdue" : t.recurring === "weekly" && daysUntil(t.due) <= 2 ? "Due soon · Weekly logistics" : "Evidence missing"}</p><div class="evidence">${esc(message(t))}</div><p class="hint">${t.followupDraft && message(t) === t.followupDraft.message ? `AI draft · ${esc(t.followupDraft.provider)} · ${esc(t.followupDraft.model)} · ${esc(t.followupDraft.tone)}<br>Next step: ${esc(t.followupDraft.suggested_next_step)}` : esc(t.followupSource || "Template draft")}</p><div class="actions"><button class="small" data-ai-key="followup:${t.id}" onclick="message(state.tasks.find(t => t.id === '${t.id}'), true)" ${t.drafting ? "disabled" : ""}>Draft with AI</button><button class="small" onclick="copyFollowup('${t.id}')">Copy message</button><button class="small quiet" onclick="review('${t.id}')">View task →</button>${person(t.owner).pto ? `<button class="small" data-ai-key="explain:${t.id}" onclick="recommend('${t.id}')">Find coverage</button>` : ""}</div></div>`).join("") || '<div class="empty">No follow-ups needed.</div>'}</section><p class="hint">Template or labelled AI drafts. Copy to clipboard only; nothing is sent. AI drafts use supplied task facts and never infer hours worked.</p>`
+    `<section class="panel"><div class="panel-head"><h2>Suggested follow-ups</h2><span class="tag">${ts.length} drafts</span></div>${ts.map((t) => `<div class="review"><div class="row"><h3>${esc(t.title)}</h3>${badge(t)}</div><p>${esc((person(t.owner)?.name || "Unassigned"))} · ${person(t.owner)?.pto ? "Coverage needed" : t.status === "blocked" ? "Blocked" : t.due && t.due < new Date().toLocaleDateString("en-CA") ? "Overdue" : t.recurring === "weekly" && daysUntil(t.due) <= 2 ? "Due soon · Weekly logistics" : "Evidence missing"}</p><div class="evidence">${esc(message(t))}</div><p class="hint">${t.followupDraft && message(t) === t.followupDraft.message ? `AI draft · ${esc(t.followupDraft.provider)} · ${esc(t.followupDraft.model)} · ${esc(t.followupDraft.tone)}<br>Next step: ${esc(t.followupDraft.suggested_next_step)}` : esc(t.followupSource || "Template draft")}</p><div class="actions"><button class="small" data-ai-key="followup:${t.id}" onclick="message(state.tasks.find(t => t.id === '${t.id}'), true)" ${t.drafting ? "disabled" : ""}>Draft with AI</button><button class="small" onclick="copyFollowup('${t.id}')">Copy message</button><button class="small quiet" onclick="review('${t.id}')">View task →</button>${person(t.owner)?.pto ? `<button class="small" data-ai-key="explain:${t.id}" onclick="recommend('${t.id}')">Find coverage</button>` : ""}</div></div>`).join("") || '<div class="empty">No follow-ups needed.</div>'}</section><p class="hint">Template or labelled AI drafts. Copy to clipboard only; nothing is sent. AI drafts use supplied task facts and never infer hours worked.</p>`
   );
 }
 function message(t, draftWithAI = false) {
@@ -1159,12 +1167,12 @@ function message(t, draftWithAI = false) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            employee_name: person(t.owner).name,
+            employee_name: (person(t.owner)?.name || "Unassigned"),
             task: {
               title: t.title,
               criteria: t.criteria,
               status: t.status,
-              unavailable: Boolean(person(t.owner).pto),
+              unavailable: Boolean(person(t.owner)?.pto),
             },
             reason:
               t.status === "blocked"
@@ -1193,10 +1201,10 @@ function message(t, draftWithAI = false) {
           return toast("Task changed. Draft again.");
         t.followupDraft = { ...json, signature };
         toast("AI draft ready. Nothing was sent.");
-      } catch {
+      } catch (e) {
         delete t.followupDraft;
         t.followupSource = "Template (AI unavailable)";
-        toast("AI unavailable. Template retained; nothing was sent.");
+        toast("Follow-up failed: " + e.message + ". Template retained; nothing was sent.");
       } finally {
         delete t.drafting;
         save();
@@ -1214,9 +1222,9 @@ function message(t, draftWithAI = false) {
     evidence: t.evidence,
   });
   if (t.followupDraft?.signature === signature) return t.followupDraft.message;
-  return person(t.owner).pto
-    ? `Hi ${person(t.owner).name.split(" ")[0]}, we're arranging coverage for “${t.title}” while you are unavailable. Please share any handoff context when you're available. A coordinator will approve the replacement.`
-    : `Hi ${person(t.owner).name.split(" ")[0]}, a quick check on “${t.title}”, due ${t.due || "date not set"}. Please add the required evidence or flag a blocker: ${t.criteria} You can review the task in TruthLink.`;
+  return person(t.owner)?.pto
+    ? `Hi ${(person(t.owner)?.name || "teammate").split(" ")[0]}, we're arranging coverage for “${t.title}” while you are unavailable. Please share any handoff context when you're available. A coordinator will approve the replacement.`
+    : `Hi ${(person(t.owner)?.name || "teammate").split(" ")[0]}, a quick check on “${t.title}”, due ${t.due || "date not set"}. Please add the required evidence or flag a blocker: ${t.criteria} You can review the task in TruthLink.`;
 }
 async function copyFollowup(id) {
   try {
@@ -1348,6 +1356,7 @@ function experience(p, t) {
 }
 function recordCompletion(t) {
   const p = person(t.owner);
+  if (!p) return;
   p.records ||= [];
   if (!p.records.some((r) => r.task_id === t.id)) {
     p.records.push({
@@ -1383,7 +1392,7 @@ function setProgress(id, value) {
   if (!active(t) || !["todo", "in_progress", "blocked"].includes(value)) return;
   t.status = value;
   t.checked = false;
-  log(person(t.owner).name + " updated " + t.title + " to " + status(t));
+  log((person(t.owner)?.name || "Unassigned") + " updated " + t.title + " to " + status(t));
   closeModal();
   review(id);
   render();
@@ -1533,11 +1542,11 @@ async function apiJson(url, options = {}, timeoutMs = 12000) {
   } finally { clearTimeout(timer); }
 }
 function workspacePayload() {
-  return JSON.parse(JSON.stringify({people:state.people,tasks:state.tasks,decisions:state.decisions || [],activity:state.activity || []}, (key,value) => ["verifying","drafting"].includes(key) ? undefined : value));
+  return JSON.parse(JSON.stringify({people:state.people,tasks:state.tasks,decisions:state.decisions || [],activity:state.activity || []}, (key,value) => ["verifying","drafting","pullingFusion"].includes(key) ? undefined : value));
 }
 function baselineTasks() {
   taskChanges.clear();
-  state.tasks.forEach(t => { t.updated_at ||= "2026-10-10T09:00:00"; delete t.verifying; delete t.drafting; taskChanges.set(t.id,JSON.stringify([t.status,t.owner,t.evidence,t.evidenceDocs])); });
+  state.tasks.forEach(t => { t.updated_at ||= "2026-10-10T09:00:00"; delete t.verifying; delete t.drafting; delete t.pullingFusion; taskChanges.set(t.id,JSON.stringify([t.status,t.owner,t.evidence,t.evidenceDocs])); });
 }
 function scheduleSync() {
   localRevision++; syncDirty = true;
@@ -1566,7 +1575,7 @@ async function loadSharedState() {
     if (json.state !== null && !["people","tasks","decisions","activity"].every(key => Array.isArray(json.state?.[key]))) throw new Error("Invalid workspace response");
     if (revision === localRevision) {
       state = json.state === null ? structuredClone(seed) : json.state;
-      baselineTasks(); localStorage.setItem(KEY,JSON.stringify(state)); render();
+      baselineTasks(); localStorage.setItem(KEY,JSON.stringify(workspacePayload())); render();
     }
     stateReady = true;
     if (json.state === null || revision !== localRevision) { syncDirty = true; await flushSharedState(); }
@@ -1627,11 +1636,11 @@ async function pullFusion(id) {
   const t = state.tasks.find(t => t.id === id);
   if (!t?.fusion_document || !active(t) || t.pullingFusion) return;
   t.pullingFusion = true;
-  const documentName = t.fusion_document;
+  const documentName = t.fusion_document, priorUpdate = t.updated_at, taskFacts = JSON.stringify([t.owner,t.criteria]);
   try {
     const {latest,previous} = await apiJson("/api/fusion/snapshot?document=" + encodeURIComponent(documentName));
     if (!latest || latest.document !== documentName || !Number.isFinite(latest.proofpilot_snapshot)) throw new Error("Invalid Fusion snapshot");
-    if (!active(t) || t.fusion_document !== documentName) throw new Error("Task changed while pulling evidence");
+    if (!state.tasks.includes(t) || !active(t) || t.fusion_document !== documentName || taskFacts !== JSON.stringify([t.owner,t.criteria])) throw new Error("Task changed while pulling evidence");
     const text = JSON.stringify(latest);
     if (text.length > 15000) throw new Error("Snapshot exceeds verification text limit; export a compact snapshot");
     const name = documentName + ".truthlink.json", doc = {name,size:new Blob([text]).size,type:"application/json",text};
@@ -1641,7 +1650,7 @@ async function pullFusion(id) {
     t.fusionDiff = previous ? `Mass ${previous.mass_g ?? "unknown"} → ${latest.mass_g ?? "unknown"} g · v${previous.current_version ?? "?"} → v${latest.current_version ?? "?"} · saved by ${saved?.saved_by || "unknown"}` : "First received snapshot · no earlier snapshot to compare.";
     t.evidence_source = "fusion"; t.checked = false; delete t.aiReview;
     log("Pulled latest Fusion evidence for " + t.title);
-    await checkEvidence(id);
+    await checkEvidence(id, priorUpdate);
   } catch (e) { toast("Fusion pull failed: " + e.message + ". Existing evidence retained; upload a snapshot instead."); }
   finally { delete t.pullingFusion; }
 }
