@@ -1,0 +1,23 @@
+version: 1
+applications:
+  - appRoot: web
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - nvm install 20 && nvm use 20
+            - npm ci
+        build:
+          commands:
+            # Amplify only exposes console env vars at build time; write the server-side ones
+            # into .env.production so Next.js API routes can read them at runtime.
+            - env | grep -E '^(LLM_|MONGODB_|TRUTHLINK_)' > .env.production || true
+            - npm run build
+      artifacts:
+        baseDirectory: .next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+          - .next/cache/**/*
