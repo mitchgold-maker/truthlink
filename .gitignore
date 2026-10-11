@@ -32,3 +32,9 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# AWS App Monetization beta skill (confidential; do not commit)
+.claude/skills/monetize/
+.codex/skills/monetize/
+.kiro/skills/monetize/
+.pi/
