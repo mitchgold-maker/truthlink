@@ -8,7 +8,7 @@ ProofPilot turns meetings into accountable tasks, verifies deliverables with evi
 
 ## Customers and pilots
 - **Target customers:** large engineering organizations, such as aerospace and defense companies like Lockheed Martin and Boeing (no affiliation; this is the market we are building for). Many concurrent programs, deliverables that must be verifiable, specialised skills, and high cost when a key engineer is out.
-- **Pilot groups:** student engineering clubs and design teams. They run real engineering projects with the same problems at small scale, so we test every feature with them and change the product from their feedback (logged in ).
+- **Pilot groups:** student engineering clubs and design teams. They run real engineering projects with the same problems at small scale, so we test every feature with them and change the product from their feedback (logged in `validation/LOG.md`).
 
 ## Users
 - **Manager** (program or project manager; in pilots, the club or project lead): creates projects, approves AI-drafted tasks, approves complex deliverables, approves reassignments, sees risk.
