@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TruthLink — Verifier Lab</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      :root { --green: #276d55; --ink: #1f2d28; --muted: #66746d; --line: #e3e8e2; --bg: #f7f8f4; --amber: #b7791f; --blue: #2f5f8f; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; color: var(--ink); background: var(--bg); }
+      main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+      header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+      header img { height: 46px; margin: -6px -10px; }
+      h1 { font-size: 28px; margin: 18px 0 4px; }
+      h2 { font-size: 17px; margin: 0 0 12px; }
+      .sub { color: var(--muted); margin: 0 0 22px; }
+      .panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+      .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+      .stat { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+      .stat b { display: block; font-size: 30px; font-variant-numeric: tabular-nums; }
+      .stat span { color: var(--muted); font-size: 13px; }
+      .bar { height: 12px; background: #eef1ec; border-radius: 6px; overflow: hidden; }
+      .bar i { display: block; height: 100%; background: var(--green); }
+      .bar.base i { background: #9aa8a0; }
+      .row { display: grid; grid-template-columns: 170px 1fr 64px; gap: 10px; align-items: center; margin: 8px 0; }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+      td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .tag { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: #e7f1ec; color: var(--green); }
+      .tag.gray { background: #eef1ec; color: var(--muted); }
+      pre { white-space: pre-wrap; background: #f3f5f1; border-radius: 8px; padding: 12px; font-size: 13px; max-height: 320px; overflow: auto; }
+      .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: 14px; }
+      .flow span { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; color: var(--ink); }
+      .table-wrap { overflow-x: auto; }
+      a { color: var(--green); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header><img src="/truthlink-logo.png" alt="TruthLink" /><span class="tag">Verifier Lab · Luminal Cloud</span></header>
+      <h1>A verifier that improves itself</h1>
+      <p class="sub">Parallel agents on Luminal propose competing review strategies. Each is scored on labelled engineering evidence, the mistakes feed the next round, and the winner is tested once on a fresh held-out set with a different seed and different phrasing.</p>
+      <div class="panel flow" id="flow">
+        <span>Baseline: production prompt</span>→<span>4 agents in parallel: Quoter · Extractor · Skeptic · Calibrator</span>→<span>Score on dev set</span>→<span>Mistakes → next round</span>→<span>Best prompt</span>→<span>Fresh test set</span>
+      </div>
+      <div id="app"><div class="panel">Loading results…</div></div>
+      <p class="sub" style="margin-top:20px"><a href="/">← Back to TruthLink</a></p>
+    </main>
+    <script>
+      const pct = (x) => (x == null ? "—" : (x * 100).toFixed(1) + "%");
+      const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+      fetch("results.json", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((d) => {
+          const b = d.test.baseline, w = d.test.improved;
+          const rel = b.accuracy < 1 ? (w.accuracy - b.accuracy) / (1 - b.accuracy) : 0;
+          const speed = d.parallelism.reduce((a, p) => a + p.sequentialSeconds, 0) / Math.max(1, d.parallelism.reduce((a, p) => a + p.wallSeconds, 0));
+          const rounds = [...new Set(d.log.map((l) => l.round))];
+          const bestByRound = rounds.map((r) => Math.max(...d.log.filter((l) => l.round <= r).map((l) => l.accuracy)));
+          document.getElementById("app").innerHTML = `
+            <div class="stats">
+              <div class="stat"><span>Fresh test accuracy (per criterion)</span><b>${pct(b.accuracy)} → ${pct(w.accuracy)}</b><span>${d.test_cases} unseen cases</span></div>
+              <div class="stat"><span>Errors removed on fresh test</span><b>${(rel * 100).toFixed(0)}%</b><span>relative error reduction vs baseline</span></div>
+              <div class="stat"><span>Cases fully correct</span><b>${pct(b.caseAccuracy)} → ${pct(w.caseAccuracy)}</b><span>every criterion right</span></div>
+              <div class="stat"><span>Parallel speed-up</span><b>${speed.toFixed(1)}×</b><span>agent work per wall-clock second</span></div>
+            </div>
+            <div class="panel"><h2>Fresh held-out test</h2>
+              <div class="row"><span>Baseline (production)</span><div class="bar base"><i style="width:${b.accuracy * 100}%"></i></div><b>${pct(b.accuracy)}</b></div>
+              <div class="row"><span>Improved (${esc(d.winner.agent)})</span><div class="bar"><i style="width:${w.accuracy * 100}%"></i></div><b>${pct(w.accuracy)}</b></div>
+              <p class="sub" style="margin:10px 0 0">The test set uses different units and phrasing (GPa, kg, "FoS") and was never used during optimisation.</p>
+            </div>
+            <div class="panel"><h2>Best dev accuracy by round</h2>
+              ${bestByRound.map((a, i) => `<div class="row"><span>${i === 0 ? "Baseline" : "Round " + i}</span><div class="bar"><i style="width:${a * 100}%"></i></div><b>${pct(a)}</b></div>`).join("")}
+            </div>
+            <div class="panel"><h2>Every agent, every round</h2><div class="table-wrap"><table>
+              <tr><th>Round</th><th>Agent</th><th>Dev accuracy</th><th>Cases correct</th><th>What it changed</th></tr>
+              ${d.log.map((l) => `<tr><td class="num">${l.round}</td><td>${esc(l.agent)}</td><td class="num">${pct(l.accuracy)}</td><td class="num">${pct(l.caseAccuracy)}</td><td>${esc(l.rationale)}</td></tr>`).join("")}
+            </table></div></div>
+            <div class="panel"><h2>Mistakes the baseline still makes on the fresh test</h2><div class="table-wrap"><table>
+              <tr><th>Criterion</th><th>Expected</th><th>Baseline said</th><th>Evidence</th></tr>
+              ${d.test.baseline_errors.map((e) => `<tr><td>${esc(e.criterion)}</td><td><span class="tag">${e.expected}</span></td><td><span class="tag gray">${e.got}</span></td><td>${esc(e.evidence.slice(0, 160))}…</td></tr>`).join("") || "<tr><td colspan=4>None</td></tr>"}
+            </table></div></div>
+            <div class="panel"><h2>Winning prompt (${esc(d.winner.agent)})</h2><pre>${esc(d.winner.prompt)}</pre>
+              <p class="sub" style="margin:0">${esc(d.provider)} · ${esc(d.model)} · ${d.usage.calls} calls · ${(d.usage.promptTokens + d.usage.completionTokens).toLocaleString()} tokens · run ${new Date(d.run_at).toLocaleString()}</p></div>`;
+        })
+        .catch(() => (document.getElementById("app").innerHTML = '<div class="panel">No results yet. Run <code>npx tsx scripts/verifier-lab/run.ts</code> in <code>web/</code>.</div>'));
+    </script>
+  </body>
+</html>
