@@ -357,6 +357,25 @@ seed.decisions = [
 ];
 seed.tasks.find(t => t.id === "t2").fusion_document = "Front Upright";
 seed.tasks.forEach(t => t.updated_at = "2026-10-10T09:00:00");
+// Fictional sample history so the timing view has data: older approved work per member, plus
+// assignment dates and rework counts on every seed record. Labelled "Fictional sample history" in the UI.
+const SAMPLE_HISTORY = {
+  alex: [["Front A-arm load case review", ["Suspension design"], "2026-09-12", 4, 0], ["Damper sweep test", ["Testing"], "2026-09-24", 3, 1]],
+  jordan: [["Rocker bracket model", ["CAD"], "2026-09-10", 2, 0], ["Upright bearing bore check", ["Suspension design"], "2026-09-26", 5, 1]],
+  sam: [["Throttle body adapter", ["Manufacturing"], "2026-09-15", 6, 1], ["Fuel map baseline", ["Powertrain"], "2026-09-28", 4, 0]],
+  taylor: [["Sponsor renewal packet", ["Sponsorship"], "2026-09-18", 3, 0], ["Travel logistics plan", ["Project management"], "2026-09-30", 2, 0]],
+  riley: [["Toe link redesign", ["Suspension design"], "2026-09-08", 3, 0], ["Skidpad test plan", ["Testing", "Suspension design"], "2026-09-22", 2, 0]],
+  casey: [["CAN bus pinout", ["Electronics"], "2026-09-14", 5, 1], ["Dash display wiring", ["Electronics"], "2026-09-29", 4, 0]],
+};
+seed.people.forEach((p, pi) => {
+  for (const [title, skills, approved, days, rework] of SAMPLE_HISTORY[p.id] || [])
+    p.records.unshift({ title, skills, approved_at: approved, started_at: new Date(Date.parse(approved) - days * 86400000).toISOString().slice(0, 10), rework, source: "fictional_seed" });
+  p.records.forEach((r, ri) => {
+    r.started_at ||= new Date(Date.parse(r.approved_at) - (2 + ((pi * 3 + ri * 5) % 6)) * 86400000).toISOString().slice(0, 10);
+    r.rework ??= (pi + ri) % 4 === 0 ? 1 : 0;
+  });
+  p.history = p.records.length;
+});
 let state;
 try {
   state = JSON.parse(localStorage.getItem(KEY)) || structuredClone(seed);
@@ -690,8 +709,34 @@ function profile(id) {
         (t) =>
           `<div class="draft"><strong>${esc(t.title)}</strong> ${badge(t)}</div>`,
       )
-      .join("")}`,
+      .join("")}${personAnalytics(p)}`,
   );
+}
+// Skill matrix + timing from approved records. Days = calendar time from assignment to team-lead approval;
+// working hours are never inferred. Existence-only completions don't count as demonstrated skill.
+function personAnalytics(p) {
+  const recs = (p.records || []).filter((r) => r.verification_type !== "exists" && r.started_at && r.approved_at);
+  const skills = [...new Set([...(p.skills || []), ...recs.flatMap((r) => r.skills || [])])];
+  const days = (r) => Math.max(0, Math.round((Date.parse(r.approved_at) - Date.parse(r.started_at)) / 86400000));
+  const median = (xs) => { const v = [...xs].sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
+  const teamMedian = (skill) => median(state.people.flatMap((q) => (q.records || []).filter((r) => r.started_at && r.approved_at && (r.skills || []).includes(skill)).map(days)));
+  const rows = skills.map((skill) => {
+    const rs = recs.filter((r) => (r.skills || []).includes(skill));
+    const d = median(rs.map(days)), tm = teamMedian(skill);
+    const fp = rs.length ? Math.round((100 * rs.filter((r) => !r.rework).length) / rs.length) : null;
+    return { skill, n: rs.length, d, tm, fp, claimed: (p.skills || []).includes(skill) };
+  }).sort((a, b) => b.n - a.n);
+  const max = Math.max(1, ...rows.map((r) => r.n));
+  const fictional = (p.records || []).some((r) => r.source === "fictional_seed");
+  return `<h3 style="margin-top:22px">Skill matrix &amp; timing</h3>
+    <p class="hint">Demonstrated = team-lead-approved work. Days = calendar time from assignment to approval (median). Hours are never inferred.${fictional ? ' <span class="tag amber">Includes fictional sample history</span>' : ""}</p>
+    <div class="table-wrap"><table><thead><tr><th>Skill</th><th>Approved work</th><th>Median days</th><th>vs team</th><th>First-pass</th></tr></thead><tbody>
+    ${rows.map((r) => `<tr><td>${esc(r.skill)}${r.n ? "" : ' <span class="tag gray">Claimed, not yet proven</span>'}</td>
+      <td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="width:90px"><span style="width:${(100 * r.n) / max}%"></span></div>${r.n}</div></td>
+      <td>${r.d ?? "—"}</td>
+      <td>${r.d != null && r.tm != null ? (r.d < r.tm ? '<span class="tag">faster</span>' : r.d > r.tm ? '<span class="tag amber">slower</span>' : '<span class="tag gray">typical</span>') + ` <span class="hint">team ${r.tm}d</span>` : "—"}</td>
+      <td>${r.fp == null ? "—" : r.fp + "%"}</td></tr>`).join("")}
+    </tbody></table></div>`;
 }
 function recommendOwner(id) {
   let ts = state.tasks.filter((t) => t.owner === id && active(t));
@@ -1027,7 +1072,7 @@ function meetingsPage() {
       "Meeting notes",
       "Capture the decisions. Review the assignments. Keep moving.",
     ) +
-    `<div class="grid"><section class="panel"><div class="panel-head"><h2>Import your notes</h2><span class="tag gray">AI extraction</span></div><div class="panel-body"><label style="display:block;font-size:12px;margin-bottom:8px">Initiative</label><select id="meetingProject" style="width:100%;margin-bottom:18px"><option>Chassis &amp; Suspension</option><option>Powertrain</option><option>Electronics &amp; Operations</option></select><label for="notes" style="font-size:12px;display:block;margin-bottom:10px">Paste meeting notes</label><textarea id="notes" placeholder="Alex will finish the kinematics report by 2026-10-14…">${sampleNotes}</textarea><div class="actions" style="margin-top:14px"><button class="primary" data-ai-key="extract" onclick="extract()">✧ Extract draft tasks</button><label class="small" style="cursor:pointer">Upload .txt <input type="file" accept=".txt" style="display:none" onchange="readNotes(this)"></label></div><p class="hint">An LLM drafts tasks, owners, dates and acceptance criteria; nothing is assigned until you approve. Falls back to a local parser if AI is unavailable.</p></div></section><section class="panel"><div class="panel-head"><h2>Your review matters</h2></div><div class="panel-body"><h3>01 &nbsp; Capture</h3><p>Bring in notes from your meeting.</p><h3 style="margin-top:24px">02 &nbsp; Confirm</h3><p>Check the task, owner, deadline, and effort. Ambiguous assignments need your judgment.</p><h3 style="margin-top:24px">03 &nbsp; Assign</h3><p>Only approved drafts enter the work ledger and update team capacity.</p></div></section></div><section id="draftArea" class="section-gap"></section>`
+    `<div class="grid"><section class="panel"><div class="panel-head"><h2>Import your notes</h2><span class="tag gray">AI extraction</span></div><div class="panel-body"><label style="display:block;font-size:12px;margin-bottom:8px">Initiative</label><select id="meetingProject" style="width:100%;margin-bottom:18px"><option>Chassis &amp; Suspension</option><option>Powertrain</option><option>Electronics &amp; Operations</option></select><label for="notes" style="font-size:12px;display:block;margin-bottom:10px">Paste meeting notes</label><textarea id="notes" placeholder="Alex will finish the kinematics report by 2026-10-14…">${sampleNotes}</textarea><div class="actions" style="margin-top:14px"><button class="primary" data-ai-key="extract" onclick="extract()">✧ Extract draft tasks</button><button class="small" type="button" onclick="importFromSlack(this)">Import from Slack</button><label class="small" style="cursor:pointer">Upload .txt <input type="file" accept=".txt" style="display:none" onchange="readNotes(this)"></label></div><p class="hint">An LLM drafts tasks, owners, dates and acceptance criteria; nothing is assigned until you approve. Falls back to a local parser if AI is unavailable.</p></div></section><section class="panel"><div class="panel-head"><h2>Your review matters</h2></div><div class="panel-body"><h3>01 &nbsp; Capture</h3><p>Bring in notes from your meeting.</p><h3 style="margin-top:24px">02 &nbsp; Confirm</h3><p>Check the task, owner, deadline, and effort. Ambiguous assignments need your judgment.</p><h3 style="margin-top:24px">03 &nbsp; Assign</h3><p>Only approved drafts enter the work ledger and update team capacity.</p></div></section></div><section id="draftArea" class="section-gap"></section>`
   );
 }
 function readNotes(input) {
@@ -1397,6 +1442,8 @@ function recordCompletion(t) {
       title: t.title,
       skills: [...t.skills],
       approved_at: new Date().toISOString().slice(0, 10),
+      started_at: String(t.assigned_at || t.created_at || t.updated_at || new Date().toISOString()).slice(0, 10),
+      rework: t.rework || 0,
       source: "demo_approval",
       verification_type: t.type,
     });
@@ -1777,3 +1824,23 @@ loadSharedState();
 loadPerformance();
 
 // Verifier Lab results are pitch material at /lab, not part of the product UI.
+
+async function importFromSlack(btn) {
+  btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = "Reading Slack…";
+  try {
+    const res = await fetch("/api/slack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "history" }) });
+    const json = await res.json().catch(() => ({}));
+    if (res.status === 503) return toast("Slack isn't connected yet. Add SLACK_BOT_TOKEN and SLACK_CHANNEL_ID in Amplify, then redeploy.");
+    if (!res.ok) throw new Error(json.error || res.status);
+    if (!json.text) return toast("No messages found in the Slack channel.");
+    document.getElementById("notes").value = json.text;
+    toast("Imported the latest minutes from Slack (" + json.count + " messages read). Review, then extract.");
+  } catch (e) {
+    toast("Slack import failed: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
