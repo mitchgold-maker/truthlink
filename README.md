@@ -2,6 +2,8 @@
 
 > **TruthLink knows what needs to get done, verifies what actually got done, and knows who can get the rest done.**
 
+**Live app:** https://main.d1dq8051ihyjhi.amplifyapp.com/ · **Guided demo:** https://main.d1dq8051ihyjhi.amplifyapp.com/demo/
+
 AI-powered workforce and project management **for large engineering organizations, such as aerospace and defense companies like Lockheed Martin and Boeing** (target market; no affiliation). **Student engineering clubs are our pilot groups**: they test the features and their feedback shapes the product. TruthLink turns meeting notes into assigned tasks, checks submitted evidence against each task's requirements, learns what each person has demonstrably done, and keeps projects on schedule with follow-ups and capacity-aware reassignment.
 
 Built at **c0mpiled-15** (Penn State, Oct 11 2026) for **Track 1 (Transpose Platform, 1C Data for the Real World)** and the **Bloomerang pool (working with non-profits)**, with feature feedback from student engineering club pilot groups. All product code is written during the event. See [docs/TRACKS.md](docs/TRACKS.md).
